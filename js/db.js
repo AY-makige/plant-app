@@ -72,8 +72,8 @@ export async function ensureDefaults() {
   for (const name of DEFAULT_MATERIALS) if (!have.has(name)) await db.put('materials', { id: 'm-' + name, name, builtin: true });
   for (const m of left) if (DEFAULT_MATERIALS.includes(m.name) && !m.builtin) await db.put('materials', { ...m, builtin: true });
   if (!(await db.get('kv', 'settings'))) {
-    await db.kvSet('settings', { region: null, notify: { enabled: true, offsets: [3, 1, 0], overdue: true }, margin: 3 });
+    await db.kvSet('settings', { region: null, notify: { enabled: true, time: '08:00', stages: { soon: true, now: true, late: true } }, margin: 3 });
   }
 }
-export const getSettings = () => db.kvGet('settings', { region: null, notify: { enabled: true, offsets: [3, 1, 0], overdue: true }, margin: 3 });
+export const getSettings = () => db.kvGet('settings', { region: null, notify: { enabled: true, time: '08:00', stages: { soon: true, now: true, late: true } }, margin: 3 });
 export const saveSettings = (s) => db.kvSet('settings', s);

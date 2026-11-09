@@ -64,6 +64,7 @@ async function init() {
   const ts = document.getElementById('top-settings'); ts.href = '#/settings'; ts.append(icon('settings', 24));
   window.addEventListener('hashchange', route);
   window.addEventListener('install-ready', () => { if (['home', 'settings'].includes(document.body.dataset.route)) route(); });
+  try { window.PlantCore.setLabels((await db.kvGet('settings', {})).labels); } catch (e) { /* noop */ }
   await route();
 
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* noop */ }
@@ -72,9 +73,10 @@ async function init() {
   }
   const check = () => N.checkAndNotify().catch(() => 0);
   check(); document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
-  setInterval(check, 30 * 60000);
-  // バックアップ促し(30日)
-  const lb = await db.kvGet('lastBackup', null); const plants = await db.all('plants');
-  if (plants.length && (!lb || (Date.now() - new Date(lb).getTime()) / 86400000 > 30) && !sessionStorage.getItem('bk')) { sessionStorage.setItem('bk', '1'); setTimeout(() => toast('💾 バックアップが30日以上ありません(設定から保存できます)', 5000), 1500); }
+  setInterval(check, 5 * 60000);
+  // バックアップ促し: 3か月(90日)に一度だけ
+  const lb = await db.kvGet('lastBackup', null); const plants = await db.all('plants'); const nag = await db.kvGet('backupNag', null);
+  const age = (d) => (Date.now() - new Date(d).getTime()) / 86400000;
+  if (plants.length && (!lb || age(lb) > 90) && (!nag || age(nag) > 90)) { await db.kvSet('backupNag', window.PlantCore.today()); setTimeout(() => toast('💾 バックアップを取って3か月以上たちました(設定から保存できます)', 5000), 1500); }
 }
 init();

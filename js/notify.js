@@ -40,8 +40,8 @@ export async function checkAndNotify() {
   if (!list.length) return 0;
   const reg = await navigator.serviceWorker.ready;
   for (const n of list) {
-    await reg.showNotification('植物管理', { body: n.text, tag: n.key, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png' });
-    notified[n.key] = Date.now();
+    await reg.showNotification(n.title, { body: n.text, tag: n.tag, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png' });
+    for (const k of n.keys) notified[k] = Date.now();
   }
   // 古い記録の掃除(60日)
   for (const k of Object.keys(notified)) if (Date.now() - notified[k] > 60 * 86400000) delete notified[k];

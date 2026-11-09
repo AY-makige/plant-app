@@ -367,3 +367,11 @@ main{padding-bottom:calc(var(--nav-h) + 32px + var(--safe-b))}
 .pf-list{max-height:240px;overflow-y:auto;border-top:1px solid var(--line);padding:.2rem .3rem}
 .pf-opt{display:flex;align-items:center;gap:.7rem;padding:.5rem .6rem;min-height:44px;border-radius:10px;cursor:pointer}
 .pf-opt.on{background:var(--g3)}
+/* 予定の段階表示(危機感をあおらない、やわらかい配色) */
+.task.st-soon,.task.st-now,.task.st-late{box-shadow:var(--shadow)}
+.task.st-soon{background:#f3f8ea}.task.st-now{background:#fffbe6;box-shadow:inset 4px 0 0 #e6c95a,var(--shadow)}.task.st-late{background:#fff3e6;box-shadow:inset 4px 0 0 #e8a96b,var(--shadow)}
+.due-chip.st-soon{background:#e3efd3;color:#4c7a2c}.due-chip.st-now{background:#fdeba8;color:#7a5b00}.due-chip.st-late{background:#fbddc2;color:#8a4a12}
+.pdue.st-soon{color:#4c7a2c}.pdue.st-now{background:#fdeba8;color:#7a5b00}.pdue.st-late{background:#fbddc2;color:#8a4a12}
+:root[data-mode=dark] .task.st-soon,:root[data-mode=dark] .task.st-now,:root[data-mode=dark] .task.st-late{background:var(--card)!important}
+.lb-row{display:grid;grid-template-columns:1fr 9em;gap:.5rem;align-items:center;margin:.2rem 0}.lb-row input{width:100%}
+.col{display:flex;flex-direction:column;gap:.3rem}

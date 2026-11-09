@@ -88,27 +88,65 @@
     return out.sort((a, b) => order[a.level] - order[b.level] || a.date.localeCompare(b.date));
   }
 
-  /** 通知対象の判定。notified は {key:true} の既通知マップ */
-  function computeDueNotifications(plants, names, settings, notified) {
-    const n = (settings && settings.notify) || {};
-    if (n.enabled === false) return [];
-    const offsets = Array.isArray(n.offsets) ? n.offsets : [3, 1, 0];
-    const overdueOn = n.overdue !== false;
-    const t0 = today();
-    const lines = [];
-    for (const t of buildTasks(plants, names)) {
-      const label = t.kind === 'water' ? '水やり' : '液体肥料';
-      let key = null, text = null;
-      if (t.daysLeft < 0 && overdueOn) { key = `${t.plantId}:${t.kind}:over:${t0}`; text = `${t.name}:${label}が ${-t.daysLeft} 日超過しています`; }
-      else if (offsets.includes(t.daysLeft)) {
-        key = `${t.plantId}:${t.kind}:${t.due}:${t.daysLeft}`;
-        text = t.daysLeft === 0 ? `${t.name}:今日は${label}のタイミングです`
-          : t.daysLeft === 1 ? `${t.name}:明日は${label}(準備を)` : `${t.name}:あと${t.daysLeft}日で${label}`;
-      }
-      if (key && !(notified && notified[key])) lines.push({ key, text, kind: t.kind });
-    }
-    return lines;
-  }
+  /* ── 予定日との差による段階(そろそろ / 今やる / 遅れ)と、ユーザーが変えられる表示名 ── */
+  const DEFAULT_LABELS = {
+    water: { soon: 'そろそろ', now: 'カラカラ', late: 'み、水…' },
+    fert: { soon: 'そろそろ', now: '腹ペコ', late: '断食' },
+  };
+  /** 「遅れ」になる超過日数(水やり: 4日以上、液肥: 3日以上) */
+  const LATE_FROM = { water: 3, fert: 3 };
+  const SOON_DAYS = 5; // 予定日の5日前〜1日前
+  const mergeLabels = (l) => {
+    const out = { water: { ...DEFAULT_LABELS.water }, fert: { ...DEFAULT_LABELS.fert } };
+    for (const k of ['water', 'fert']) for (const st of ['soon', 'now', 'late']) { const v = l && l[k] && l[k][st]; if (typeof v === 'string' && v.trim()) out[k][st] = v.trim(); }
+    return out;
+  };
+  let LABELS = mergeLabels(null);
+  const setLabels = (l) => { LABELS = mergeLabels(l); };
+  const getLabels = () => LABELS;
+  /** daysLeft = 予定日 − 今日。戻り値: 'soon' | 'now' | 'late' | null */
+  const stageOf = (kind, daysLeft) => {
+    if (daysLeft >= 1 && daysLeft <= SOON_DAYS) return 'soon';
+    if (daysLeft > SOON_DAYS) return null;
+    return -daysLeft >= LATE_FROM[kind] ? 'late' : 'now';
+  };
+  const stageLabel = (kind, daysLeft, labels) => { const st = stageOf(kind, daysLeft); return st ? (labels || LABELS)[kind][st] : null; };
 
-  root.PlantCore = { DAY, ymd, parse, today, addDays, diffDays, num, isDormant, effWater, effFert, nextDue, buildTasks, computeWarnings, computeDueNotifications };
+  /** 通知の3段階: soon=そろそろ(5〜1日前) / now=最適(予定日当日) / over=予定を過ぎてる */
+  const notifStageOf = (daysLeft) => (daysLeft >= 1 && daysLeft <= SOON_DAYS ? 'soon' : daysLeft === 0 ? 'now' : daysLeft < 0 ? 'over' : null);
+  const DEFAULT_NOTIFY = { enabled: true, time: '08:00', stages: { soon: true, now: true, over: true } };
+  const notifyCfg = (settings) => {
+    const n = (settings && settings.notify) || {};
+    return { enabled: n.enabled !== false, time: /^\d{1,2}:\d{2}$/.test(n.time || '') ? n.time : DEFAULT_NOTIFY.time, stages: { ...DEFAULT_NOTIFY.stages, ...(n.stages || {}) } };
+  };
+
+  /** 通知対象の判定。段階ごとに「予定日につき1回」だけ通知し、同じ段階の植物は1通にまとめる。
+      notified は {key:時刻} の既通知マップ。設定した時刻より前は何も返さない */
+  function computeDueNotifications(plants, names, settings, notified, now) {
+    const n = notifyCfg(settings);
+    if (!n.enabled) return [];
+    now = now || new Date();
+    const [hh, mm] = n.time.split(':').map(Number);
+    if (now.getHours() * 60 + now.getMinutes() < hh * 60 + mm) return [];
+    const labels = mergeLabels(settings && settings.labels);
+    const groups = new Map();
+    for (const t of buildTasks(plants, names)) {
+      const ns = notifStageOf(t.daysLeft), st = stageOf(t.kind, t.daysLeft);
+      if (!ns || !n.stages[ns]) continue;
+      const key = `${t.plantId}:${t.kind}:${t.due}:${ns}`;
+      if (notified && notified[key]) continue;
+      const gk = t.kind + ':' + st;
+      if (!groups.has(gk)) groups.set(gk, { kind: t.kind, stage: st, keys: [], names: [] });
+      const g = groups.get(gk); g.keys.push(key); g.names.push(t.name);
+    }
+    const order = { late: 0, now: 1, soon: 2 };
+    return [...groups.values()].sort((a, b) => order[a.stage] - order[b.stage]).map((g) => {
+      const lb = labels[g.kind][g.stage];
+      const what = g.kind === 'water' ? '水やり' : '液肥';
+      return { kind: g.kind, stage: g.stage, keys: g.keys, tag: `${g.kind}:${g.stage}:${C0()}`, title: `${what}「${lb}」`, text: g.names.join('、') };
+    });
+  }
+  const C0 = () => ymd(new Date());
+
+  root.PlantCore = { DAY, ymd, parse, today, addDays, diffDays, num, isDormant, effWater, effFert, nextDue, buildTasks, computeWarnings, computeDueNotifications, DEFAULT_LABELS, mergeLabels, setLabels, getLabels, stageOf, stageLabel, notifyCfg, notifStageOf };
 })(typeof self !== 'undefined' ? self : window);

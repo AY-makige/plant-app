@@ -179,10 +179,13 @@ export const fmtDate = (s) => { if (!s) return '—'; const d = C.parse(s); retu
 export const fmtShort = (s) => { const d = C.parse(s); return `${d.getMonth() + 1}/${d.getDate()}`; };
 export const WD = ['日', '月', '火', '水', '木', '金', '土'];
 
-export function relDays(n) {
+export function relDays(n, kind) {
+  const lb = kind ? C.stageLabel(kind, n) : null; // 段階の名前(そろそろ/カラカラ…)があればそれを表示
+  if (lb) return lb;
   if (n === 0) return '今日'; if (n === 1) return '明日'; if (n === -1) return '昨日';
-  return n > 0 ? `あと${n}日` : `${-n}日超過`;
+  return n > 0 ? `あと${n}日` : `予定日から${-n}日`;
 }
+export const stageClass = (kind, n) => { const s = C.stageOf(kind, n); return s ? ' st-' + s : ''; };
 
 export const SEASON_MONTH = { 春: 4, 夏: 7, 秋: 10, 冬: 1 };
 /** 所有開始日(推定含む) */

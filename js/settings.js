@@ -81,23 +81,38 @@ export async function renderSettings(root) {
   margin.addEventListener('change', async () => { s.margin = Number(margin.value); await saveSettings(s); toast('保存しました'); });
   root.append(h('div', { class: 'card' }, h('h2', null, '温度警告'), field('「注意」にする余裕温度(℃)', margin, '室内取り込み目安温度 + この値 以下になる予報で「注意」を表示します')));
 
+  /* 予定の表示名(水やり・液肥) */
+  const LB = C.mergeLabels(s.labels);
+  const lbIn = {}; const STG = [['soon', '予定日の5日前〜1日前'], ['now', '予定日当日〜2日すぎまで'], ['late', '3日以上すぎたとき']];
+  const lbRow = (kind, title) => h('div', { class: 'field' }, h('span', { class: 'lbl' }, title),
+    STG.map(([k, d]) => { const inp = h('input', { type: 'text', maxlength: 12, value: LB[kind][k], 'aria-label': `${title} ${d}` }); lbIn[kind + k] = inp; return h('label', { class: 'lb-row' }, h('small', { class: 'muted' }, d), inp); }));
+  root.append(h('div', { class: 'card' }, h('h2', null, '予定の表示名'),
+    h('p', { class: 'muted' }, '水やり・液肥の予定が近づいたときや過ぎたときに、カードや通知に表示する言葉です。自由に変えられます。'),
+    lbRow('water', '水やり'), lbRow('fert', '液体肥料'),
+    h('div', { class: 'row gap wrap' },
+      h('button', { class: 'btn primary', type: 'button', onclick: async () => { const l = { water: {}, fert: {} }; for (const kd of ['water', 'fert']) for (const [k] of STG) l[kd][k] = lbIn[kd + k].value; s.labels = C.mergeLabels(l); C.setLabels(s.labels); await saveSettings(s); toast('表示名を保存しました'); rerender(); } }, '保存'),
+      h('button', { class: 'btn', type: 'button', onclick: async () => { delete s.labels; C.setLabels(null); await saveSettings(s); toast('初期の表示名に戻しました'); rerender(); } }, '初期値に戻す'))));
+
   /* 通知 */
   const perm = N.permission();
   const en = h('input', { type: 'checkbox', checked: s.notify.enabled !== false });
-  const offs = [3, 2, 1, 0].map((d) => ({ d, el: h('input', { type: 'checkbox', checked: (s.notify.offsets || []).includes(d) }) }));
-  const over = h('input', { type: 'checkbox', checked: s.notify.overdue !== false });
-  const saveN = async () => { s.notify = { enabled: en.checked, offsets: offs.filter((o) => o.el.checked).map((o) => o.d), overdue: over.checked }; await saveSettings(s); toast('通知設定を保存しました'); };
-  [en, over, ...offs.map((o) => o.el)].forEach((e) => e.addEventListener('change', saveN));
+  const nc = C.notifyCfg(s);
+  const stg = ['soon', 'now', 'over'].map((k) => ({ k, el: h('input', { type: 'checkbox', checked: nc.stages[k] }) }));
+  const tm = h('input', { type: 'time', value: nc.time.padStart(5, '0'), 'aria-label': '通知する時刻', style: { width: 'auto' } });
+  const saveN = async () => { s.notify = { enabled: en.checked, time: tm.value || '08:00', stages: Object.fromEntries(stg.map((x) => [x.k, x.el.checked])) }; await saveSettings(s); toast('通知設定を保存しました'); };
+  [en, tm, ...stg.map((x) => x.el)].forEach((e) => e.addEventListener('change', saveN));
   root.append(h('div', { class: 'card' }, h('h2', null, '通知'),
     h('p', null, '通知の許可: ', h('strong', null, { granted: '許可済み', denied: 'ブロック中(ブラウザの設定で変更)', default: '未設定', unsupported: 'このブラウザは非対応' }[perm])),
     perm !== 'granted' && perm !== 'unsupported' && perm !== 'denied' ? h('button', { class: 'btn primary small', onclick: async () => { await N.requestPermission(); rerender(); } }, '通知を許可する') : null,
     perm === 'granted' ? h('button', { class: 'btn small', onclick: () => N.testNotification().catch((e) => toast(e.message)) }, 'テスト通知') : null,
     h('label', { class: 'check' }, en, ' 通知を有効にする'),
-    h('div', { class: 'field' }, h('span', { class: 'lbl' }, '通知するタイミング(予定日の…)'), h('div', { class: 'row gap wrap' }, offs.map((o) => h('label', { class: 'check' }, o.el, o.d === 0 ? ' 当日' : ` ${o.d}日前`)))),
-    h('label', { class: 'check' }, over, ' 予定日を超過したら通知する(1日1回)'),
+    h('div', { class: 'field' }, h('span', { class: 'lbl' }, '通知する時刻'), h('div', { class: 'row gap wrap' }, tm, h('small', { class: 'muted' }, 'この時刻になったら(アプリを開いている/定期同期が動いている場合)お知らせします'))),
+    h('div', { class: 'field' }, h('span', { class: 'lbl' }, '通知する段階(各段階につき予定日ごとに1回・同じ種類の植物は1通にまとめます)'), h('div', { class: 'col' },
+      h('label', { class: 'check' }, stg[0].el, ' そろそろ(予定日の5日前〜1日前)'),
+      h('label', { class: 'check' }, stg[1].el, ' 最適(予定日当日)'),
+      h('label', { class: 'check' }, stg[2].el, ' 予定を過ぎてる(予定日をすぎたとき)'))),
     h('div', { class: 'note' }, 'ℹ アプリを開いたとき・画面に戻ったときに通知を判定します。アプリを閉じたままの通知は、ホーム画面に追加したPWA(Chrome/Android等)の「定期バックグラウンド同期」が使える場合のみ届き、時刻は保証されません。確実な時刻通知にはWeb Pushサーバーが必要です(README参照)。通知を許可しなくても、ホーム画面で予定を確認できます。')));
 
-  root.append(h('div', { class: 'card' }, h('h2', null, '用土・配合レシピ'), h('p', { class: 'muted' }, '植物ごとの用土は各植物の詳細画面で確認・変更できます。配合レシピや用土の種類の管理はこちらです。'), h('a', { class: 'btn small', href: '#/soil' }, '用土・配合レシピを管理')));
 
   /* バックアップ */
   const file = h('input', { type: 'file', accept: 'application/json,.json', class: 'hidden', onchange: async (e) => {

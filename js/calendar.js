@@ -67,7 +67,7 @@ export async function renderCalendar(root) {
     grid.append(h('button', { class: 'cal-cell' + (k === t0 ? ' today' : '') + (k === selDay ? ' sel' : '') + (wd === 0 ? ' sun' : wd === 6 ? ' sat' : ''), onclick: () => { state.day = k; rerender(); } },
       h('span', { class: 'dn' }, d),
       h('span', { class: 'dots' },
-        cnt('water', (e) => !e.done) ? h('span', { class: 'dot w' + (es.some((e) => e.kind === 'water' && e.over) ? ' over' : '') }, h('i'), cnt('water', (e) => !e.done)) : null,
+        cnt('water', (e) => !e.done) ? h('span', { class: 'dot w' + '' }, h('i'), cnt('water', (e) => !e.done)) : null,
         cnt('fert', (e) => !e.done) ? h('span', { class: 'dot f' }, h('i'), cnt('fert', (e) => !e.done)) : null,
         es.some((e) => e.done) ? h('span', { class: 'dot ok' }, h('i'), es.filter((e) => e.done).length) : null)));
   }
@@ -76,7 +76,7 @@ export async function renderCalendar(root) {
     const es = ev[selDay] || [];
     detail.append(h('h3', null, `${fmtDate(selDay)}(${WD[C.parse(selDay).getDay()]})`));
     if (!es.length) detail.append(h('p', { class: 'muted' }, 'この日の予定はありません'));
-    for (const e of es) detail.append(h('div', { class: 'log' }, e.done ? '✓ 実施済み ' : e.proj ? '(予測) ' : e.over ? '⚠ 超過 ' : '', e.kind === 'water' ? '水やり' : '液体肥料', ' — ', h('a', { href: `#/plants/${e.p.id}` }, ctx.names[e.p.id])));
+    for (const e of es) detail.append(h('div', { class: 'log' }, e.done ? '✓ 実施済み ' : e.proj ? '(予測) ' : e.over ? '予定日を過ぎ ' : '', e.kind === 'water' ? '水やり' : '液体肥料', ' — ', h('a', { href: `#/plants/${e.p.id}` }, ctx.names[e.p.id])));
   } else detail.append(h('p', { class: 'muted' }, '日付をタップすると詳細を表示します'));
 
   // 今月の成長サイクル

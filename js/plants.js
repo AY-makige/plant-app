@@ -1,5 +1,5 @@
 // plants.js — ライブラリー(一覧・詳細・登録/編集)
-import { h, sprite, icon, empty, field, opt, monthChips, mixLine, modal, confirmBox, toast, photoInput, fmtDate, relDays, ownStart, lifespanText, PLANT_SPRITES, SPRITE_GROUPS, resolveSprite, MONTHS, C } from './ui.js';
+import { h, sprite, icon, empty, field, opt, monthChips, mixLine, modal, confirmBox, toast, photoInput, fmtDate, relDays, stageClass, ownStart, lifespanText, PLANT_SPRITES, SPRITE_GROUPS, resolveSprite, MONTHS, C } from './ui.js';
 import { db, uid } from './db.js';
 import { loadCtx, deleteLog, deletePlant } from './data.js';
 import { googleUrl, openAiSearch, imageUrl, RESEARCH_ITEMS, FIELDS, ENVS, getEnv, setEnv, speciesQuery, openTab, geminiConfig, geminiLookup, toFormValues } from './search.js';
@@ -74,7 +74,7 @@ export async function renderList(root) {
       const s = ctx.sp[p.speciesId] || {}; const w = C.nextDue(p, 'water'); const dl = w.date ? C.diffDays(w.date, C.today()) : null;
       grid.append(h('a', { class: 'pcard', href: `#/plants/${p.id}` },
         h('div', { class: 'pimg' }, avatar(p, 'cover'), statusBadge(p.status),
-          dl != null ? h('span', { class: 'pdue' + (dl < 0 ? ' over' : dl === 0 ? ' today' : '') }, icon('drop', 13), relDays(dl)) : w.stopped ? h('span', { class: 'pdue' }, '水やり停止中') : null),
+          dl != null ? h('span', { class: 'pdue' + stageClass('water', dl) }, icon('drop', 13), relDays(dl, 'water')) : w.stopped ? h('span', { class: 'pdue' }, '水やり停止中') : null),
         h('div', { class: 'ptxt' }, h('strong', null, ctx.names[p.id]), h('small', null, s.commonName && s.commonName !== ctx.names[p.id] ? s.commonName : s.sciName || ''))));
     }
   };
@@ -109,7 +109,7 @@ export async function renderDetail(root, id) {
     const label = kind === 'water' ? '水やり' : '液体肥料'; const dl = n.date ? C.diffDays(n.date, C.today()) : null;
     return h('div', { class: 'card sched' }, h('div', { class: 'row between' }, h('h3', { class: 'kind ' + kind }, icon(kind === 'water' ? 'drop' : 'flask', 18), label), dorm ? h('span', { class: 'badge st-dorm' }, '休眠期設定') : null),
       n.stopped ? h('p', { class: 'muted' }, '休眠期のため停止中') : !n.date ? h('p', { class: 'muted' }, '間隔が未設定です(編集で設定)') :
-        h('div', null, h('div', { class: 'big-date' + (dl < 0 ? ' over' : '') }, fmtDate(n.date), h('small', null, ` (${relDays(dl)})`)),
+        h('div', null, h('div', { class: 'big-date' }, fmtDate(n.date), h('small', null, ` (${relDays(dl, kind)})`)),
           h('small', { class: 'muted' }, `${n.interval}日ごと / 最終: ${cfg.last ? fmtDate(cfg.last) : '未記録'}`)),
       kind === 'water' ? h('small', { class: 'muted' }, `量・方法: ${C.effWater(p).amount || '—'}`) : h('small', { class: 'muted' }, `${cfg.type || '—'}${cfg.dilution ? ' / ' + cfg.dilution : ''}${cfg.amount ? ' / ' + cfg.amount : ''}`));
   };

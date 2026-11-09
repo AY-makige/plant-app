@@ -16,8 +16,14 @@ export async function loadCtx() {
 export async function recordCare(plant, kind, entry) {
   const log = { id: uid(), plantId: plant.id, kind, date: entry.date || C.today(), time: entry.time || '', amount: entry.amount || '', method: entry.method || '',
     fertType: entry.fertType || '', dilution: entry.dilution || '', note: entry.note || '', dormant: C.isDormant(plant), ts: Date.now() };
+  // 液肥を与えたら、水も与えたものとして水やりも同時に記録(次回の水やり予定も更新される)
+  if (kind === 'fert') {
+    const w = { id: uid(), plantId: plant.id, kind: 'water', date: log.date, time: log.time, amount: C.effWater(plant).amount || '', method: '', fertType: '', dilution: '', note: '液肥と同時', dormant: log.dormant, ts: log.ts + 1, linkedTo: log.id };
+    await db.put('logs', w); log.waterLogId = w.id;
+  }
   await db.put('logs', log);
   await syncLast(plant.id, kind);
+  if (kind === 'fert') await syncLast(plant.id, 'water');
   return log;
 }
 
@@ -32,7 +38,12 @@ export async function syncLast(plantId, kind) {
   await db.put('plants', plant);
 }
 
-export async function deleteLog(log) { await db.del('logs', log.id); if (log.kind === 'water' || log.kind === 'fert') await syncLast(log.plantId, log.kind); }
+export async function deleteLog(log) {
+  await db.del('logs', log.id);
+  if (log.waterLogId) await db.del('logs', log.waterLogId); // 液肥と同時に記録した水やりも一緒に消す
+  if (log.kind === 'water' || log.kind === 'fert') await syncLast(log.plantId, log.kind);
+  if (log.waterLogId) await syncLast(log.plantId, 'water');
+}
 
 /** 完全削除(履歴も削除するか選べる) */
 export async function deletePlant(id, withHistory = true) {

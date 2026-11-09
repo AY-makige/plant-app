@@ -1,5 +1,5 @@
 // tasks.js — 管理タスク(水やり / 液体肥料 / 実施履歴 / 次回予定)
-import { h, sprite, empty, confirmBox, fmtDate, relDays, icon, C } from './ui.js';
+import { h, sprite, empty, confirmBox, fmtDate, relDays, stageClass, icon, C } from './ui.js';
 import { db } from './db.js';
 import { loadCtx, deleteLog } from './data.js';
 import { careModal, quickCare } from './care.js';
@@ -8,18 +8,18 @@ import { avatar } from './plants.js';
 /** タスク1行: 右端の丸ボタンでワンタップ完了(トーストで取り消し可)、鉛筆で日付指定 */
 export function taskRow(ctx, t, onDone) {
   const p = ctx.plants.find((x) => x.id === t.plantId);
-  const over = t.daysLeft < 0; const label = t.kind === 'water' ? '水やり' : '液体肥料';
-  const row = h('div', { class: 'task' + (over ? ' over' : t.daysLeft === 0 ? ' today' : '') },
+  const sc = stageClass(t.kind, t.daysLeft); const label = t.kind === 'water' ? '水やり' : '液体肥料';
+  const row = h('div', { class: 'task' + sc },
     h('a', { href: `#/plants/${p.id}`, class: 'task-av' }, avatar(p, 'mini')),
     h('div', { class: 'task-main' }, h('a', { class: 'task-name', href: `#/plants/${p.id}` }, t.name),
       h('div', { class: 'task-meta' }, h('span', { class: 'kind ' + t.kind }, icon(t.kind === 'water' ? 'drop' : 'flask', 14), label), C.isDormant(p) ? h('span', { class: 'mini-badge dorm' }, '休眠期') : null,
-        h('span', { class: 'due-chip' + (over ? ' over' : t.daysLeft === 0 ? ' today' : '') }, relDays(t.daysLeft)))),
+        h('span', { class: 'due-chip' + sc }, relDays(t.daysLeft, t.kind)), sc && t.daysLeft !== 0 ? h('small', { class: 'muted' }, relDays(t.daysLeft)) : null)),
     h('button', { class: 'icon-btn sm', type: 'button', 'aria-label': `${t.name}の${label}を日付指定で記録`, onclick: () => careModal(p, t.kind, onDone) }, icon('edit', 18)),
     h('button', { class: 'check-btn ' + t.kind, type: 'button', 'aria-label': `${t.name}の${label}を実施済みにする`, onclick: async () => { row.classList.add('done'); await quickCare(p, t.kind, onDone); } }, icon('check', 24)));
   return row;
 }
 
-const GROUPS = [['期限切れ', (t) => t.daysLeft < 0], ['今日', (t) => t.daysLeft === 0], ['明日', (t) => t.daysLeft === 1], ['今週(2〜7日後)', (t) => t.daysLeft >= 2 && t.daysLeft <= 7], ['それ以降', (t) => t.daysLeft > 7]];
+const GROUPS = [['予定日を過ぎたもの', (t) => t.daysLeft < 0], ['今日', (t) => t.daysLeft === 0], ['明日', (t) => t.daysLeft === 1], ['今週(2〜7日後)', (t) => t.daysLeft >= 2 && t.daysLeft <= 7], ['それ以降', (t) => t.daysLeft > 7]];
 function grouped(ctx, list, rerender) {
   const out = [];
   for (const [label, f] of GROUPS) { const g = list.filter(f); if (g.length) out.push(h('div', { class: 'group' }, h('h3', { class: 'group-h' }, label, h('span', null, g.length)), g.map((t) => taskRow(ctx, t, rerender)))); }

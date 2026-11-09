@@ -1,6 +1,6 @@
 /* sw.js — オフライン用キャッシュ + バックグラウンド通知チェック */
 importScripts('js/core.js');
-const CACHE = 'plantkeeper-v27';
+const CACHE = 'plantkeeper-v29';
 const SHELL = ['./', 'index.html', 'styles.css', 'manifest.webmanifest', 'js/core.js', 'js/app.js', 'js/db.js', 'js/ui.js', 'js/data.js', 'js/care.js', 'js/plants.js', 'js/soil.js', 'js/memorial.js', 'js/tasks.js', 'js/calendar.js', 'js/home.js', 'js/settings.js', 'js/weather.js', 'js/notify.js', 'js/pwa.js', 'js/theme.js', 'js/search.js', 'assets/grave.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-64.png', 'icons/icon-maskable-192.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
@@ -29,7 +29,7 @@ async function backgroundCheck() {
   const sp = Object.fromEntries(species.map((s) => [s.id, s]));
   const names = Object.fromEntries(plants.map((p) => [p.id, p.nickname || (sp[p.speciesId] || {}).commonName || '名称未設定']));
   const list = PlantCore.computeDueNotifications(plants, names, settings, notified);
-  for (const n of list) { await self.registration.showNotification('植物管理', { body: n.text, tag: n.key, icon: 'icons/icon-192.png' }); notified[n.key] = Date.now(); }
+  for (const n of list) { await self.registration.showNotification(n.title, { body: n.text, tag: n.tag, icon: 'icons/icon-192.png' }); for (const k of n.keys) notified[k] = Date.now(); }
   if (list.length) await idbPut(db, 'kv', { key: 'notified', value: notified });
 }
 self.addEventListener('periodicsync', (e) => { if (e.tag === 'plant-check') e.waitUntil(backgroundCheck().catch(() => 0)); });
