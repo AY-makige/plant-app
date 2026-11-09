@@ -1,6 +1,8 @@
 // soil.js — 用土・配合管理(材料 / 配合レシピ / 植え替え履歴)
 import { h, sprite, icon, empty, field, opt, modal, confirmBox, toast, photoInput, fmtDate, normalizeMix, ratioText, mixLine, C } from './ui.js';
-import { db, uid, MATERIAL_SPRITE } from './db.js';
+import { db, uid, MATERIAL_SPRITE, DEFAULT_MATERIALS } from './db.js';
+const matOrder = (a, b) => { const f = (m) => { const i = DEFAULT_MATERIALS.indexOf(m.name); return i < 0 ? 999 : i; }; return f(a) - f(b) || (a.name || '').localeCompare(b.name || '', 'ja'); };
+const allMats = async () => (await db.all('materials')).sort(matOrder);
 import { loadCtx } from './data.js';
 
 const COLORS = ['#b5651d', '#e2b93b', '#a98467', '#6b705c', '#f2efe9', '#8ecae6', '#588157', '#3a5a40', '#d4a373', '#9d8189'];
@@ -46,7 +48,7 @@ function mixEditor(mats, initial) {
 }
 
 export async function recipeModal(recipe, onDone) {
-  const mats = await db.all('materials');
+  const mats = await allMats();
   modal(recipe ? '配合レシピを編集' : '配合レシピを作成', (b, close) => {
     const name = h('input', { type: 'text', value: recipe ? recipe.name : '', placeholder: '例: ドロセラ用 鹿沼土ブレンド' });
     const note = h('textarea', { rows: 2, placeholder: '備考(水はけ・用途など)' }, recipe ? recipe.note || '' : '');
@@ -65,7 +67,7 @@ export async function recipeModal(recipe, onDone) {
 
 /** 植え替えの記録(配合の選択/手入力、写真、レシピ保存) */
 export async function repotModal(plant, preset, onDone) {
-  const [mats, recipes, ctx] = await Promise.all([db.all('materials'), db.all('recipes'), loadCtx()]);
+  const [mats, recipes, ctx] = await Promise.all([allMats(), db.all('recipes'), loadCtx()]);
   modal('植え替え・用土を記録', (b, close) => {
     const plantSel = plant ? null : h('select', null, ctx.plants.map((p) => opt(p.id, ctx.names[p.id])));
     const date = h('input', { type: 'date', value: C.today() });
@@ -117,7 +119,7 @@ export function soilCard(plant, repots, mats, onChange) {
 
 export async function renderSoil(root) {
   const tab = sessionStorage.getItem('soilTab') || 'recipes';
-  const [mats, recipes, repots, ctx] = await Promise.all([db.all('materials'), db.all('recipes'), db.all('repots'), loadCtx()]);
+  const [mats, recipes, repots, ctx] = await Promise.all([allMats(), db.all('recipes'), db.all('repots'), loadCtx()]);
   const rerender = () => { root.innerHTML = ''; renderSoil(root); };
   const cur = currentSoilMap(repots);
   const usersOfRecipe = (id) => [...cur.entries()].filter(([, r]) => r.recipeId === id).map(([pid]) => pid);
@@ -135,7 +137,7 @@ export async function renderSoil(root) {
       body.append(h('div', { class: 'card' }, h('div', { class: 'row between' }, h('h3', null, r.name), h('div', { class: 'row gap' },
         h('button', { class: 'btn small', onclick: () => recipeModal(r, rerender) }, '編集'),
         h('button', { class: 'btn small ghost', onclick: async () => { if (await confirmBox(`配合「${r.name}」を削除しますか?\n(植え替え履歴の配合内容は残ります)`, '削除', true)) { await db.del('recipes', r.id); rerender(); } } }, '削除'))),
-        h('div', { class: 'ratio-big' }, ratioText(r.mix)), miniBar(mats, r.mix), h('div', { class: 'mix-legend' }, normalizeMix(r.mix).map((m) => h('span', null, h('i', { style: { background: colorOf(mats, m.material) } }), `${m.material} ${m.parts}`))),
+        h('div', { class: 'soil-sprites' }, normalizeMix(r.mix).slice(0, 5).map((m) => (MATERIAL_SPRITE[m.material] ? sprite(MATERIAL_SPRITE[m.material], 'soil-sp') : null))), h('div', { class: 'ratio-big' }, ratioText(r.mix)), miniBar(mats, r.mix), h('div', { class: 'mix-legend' }, normalizeMix(r.mix).map((m) => h('span', null, h('i', { style: { background: colorOf(mats, m.material) } }), `${m.material} ${m.parts}`))),
         r.note ? h('p', { class: 'muted' }, r.note) : null,
         h('div', { class: 'recipe-use' }, h('small', null, '使っている植物:'), used.length ? [plantLinks(used, ctx.names), h('button', { class: 'btn small ghost', type: 'button', onclick: () => toLibrary('r:' + r.id) }, 'ライブラリーで絞り込む')] : h('small', null, 'まだありません(植え替え記録でこの配合を選ぶと表示されます)'))));
     }
