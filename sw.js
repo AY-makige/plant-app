@@ -1,6 +1,6 @@
 /* sw.js — オフライン用キャッシュ + バックグラウンド通知チェック */
 importScripts('js/core.js');
-const CACHE = 'plantkeeper-v26';
+const CACHE = 'plantkeeper-v27';
 const SHELL = ['./', 'index.html', 'styles.css', 'manifest.webmanifest', 'js/core.js', 'js/app.js', 'js/db.js', 'js/ui.js', 'js/data.js', 'js/care.js', 'js/plants.js', 'js/soil.js', 'js/memorial.js', 'js/tasks.js', 'js/calendar.js', 'js/home.js', 'js/settings.js', 'js/weather.js', 'js/notify.js', 'js/pwa.js', 'js/theme.js', 'js/search.js', 'assets/grave.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-64.png', 'icons/icon-maskable-192.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
@@ -13,7 +13,7 @@ self.addEventListener('fetch', (e) => {
   const req = e.request; const url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== location.origin) return; // 天気APIなど外部はキャッシュしない
   // ネットワーク優先 → 失敗時キャッシュ(更新を反映しつつオフライン対応)
-  e.respondWith(fetch(req).then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); return res; }).catch(() => caches.match(req).then((r) => r || caches.match('index.html'))));
+  e.respondWith(fetch(req, { cache: 'no-cache' }).then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); return res; }).catch(() => caches.match(req).then((r) => r || caches.match('index.html'))));
 });
 
 /* ── IndexedDB を直接読む(ページが閉じていても動かすため) ── */

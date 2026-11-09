@@ -52,3 +52,29 @@ export async function diagnose() {
     '上の項目がすべて ✓ でも出ないことがあります。数回ページを開く/すこし操作してから、Chrome のメニュー(︙)→「アプリをインストール」を確認してください。一度「キャンセル」すると、しばらく表示されないことがあります。');
   return out;
 }
+
+/** 現在のアプリ版(Service Worker のキャッシュ名 例: plantkeeper-v27)。未登録なら null */
+export async function appVersion() {
+  try { const ks = (await caches.keys()).filter((k) => k.startsWith('plantkeeper-')).sort(); return ks.length ? ks[ks.length - 1].replace('plantkeeper-', '') : null; } catch (e) { return null; }
+}
+
+/** 更新確認: 'unsupported' | 'latest' | 'updated'(新版を取得済み) | 'error' */
+export async function checkUpdate() {
+  if (!('serviceWorker' in navigator)) return { state: 'unsupported' };
+  try {
+    const reg = await navigator.serviceWorker.getRegistration(); if (!reg) return { state: 'unsupported' };
+    const before = await appVersion();
+    await reg.update();
+    const w = reg.installing || reg.waiting;
+    if (w) await new Promise((res) => { const t = setTimeout(res, 15000); const f = () => { if (w.state === 'activated' || w.state === 'redundant') { clearTimeout(t); res(); } }; w.addEventListener('statechange', f); f(); });
+    const after = await appVersion();
+    return { state: w && after !== before ? 'updated' : 'latest', before, after };
+  } catch (e) { return { state: 'error', message: String(e.message || e) }; }
+}
+
+/** キャッシュ削除(植物のデータ=IndexedDB は消さない)して再読み込み */
+export async function clearCacheAndReload() {
+  try { for (const k of await caches.keys()) await caches.delete(k); } catch (e) { /* noop */ }
+  try { for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister(); } catch (e) { /* noop */ }
+  location.replace(location.pathname + '?r=' + Date.now() + location.hash);
+}

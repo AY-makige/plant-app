@@ -5,7 +5,7 @@ import { geocode } from './weather.js';
 import * as N from './notify.js';
 import { getTheme, setMode, setStyle } from './theme.js';
 import { DEFAULT_MODEL, geminiLookup, AI_PRESETS, getAiConfig, setAiConfig, openAiSearch, buildAiUrl } from './search.js';
-import { isStandalone, canPrompt, promptInstall, diagnose } from './pwa.js';
+import { isStandalone, canPrompt, promptInstall, diagnose, appVersion, checkUpdate, clearCacheAndReload } from './pwa.js';
 
 export async function renderSettings(root) {
   const s = await getSettings();
@@ -121,6 +121,24 @@ export async function renderSettings(root) {
     h('p', { class: 'muted' }, `最終バックアップ: ${(await db.kvGet('lastBackup', null)) || '未実施'}`),
     h('p', { class: 'muted' }, `ストレージ保護(消えにくくする設定): ${persisted === null ? '非対応' : persisted ? '有効' : '未有効'}${est ? ` / 使用量 約${(est.usage / 1048576).toFixed(1)}MB` : ''}`),
     persisted === false ? h('button', { class: 'btn small', onclick: async () => { const ok = await navigator.storage.persist(); toast(ok ? '保護を有効にしました' : 'ブラウザが許可しませんでした(ホーム画面に追加すると許可されやすくなります)'); rerender(); } }, 'データを消えにくくする') : null));
+
+  /* アプリの更新・キャッシュ */
+  const ver = await appVersion();
+  const upMsg = h('p', { class: 'muted', role: 'status', 'aria-live': 'polite' }, '');
+  const upBtn = h('button', { class: 'btn primary', type: 'button', onclick: async () => {
+    upBtn.disabled = true; upMsg.textContent = '更新を確認しています…';
+    const r = await checkUpdate(); upBtn.disabled = false;
+    if (r.state === 'updated') { upMsg.textContent = `新しい版(${r.after})を取得しました。再読み込みすると反映されます。`; upMsg.append(' ', h('button', { class: 'btn small', type: 'button', onclick: () => location.reload() }, '今すぐ再読み込み')); }
+    else if (r.state === 'latest') upMsg.textContent = '最新の状態です。';
+    else if (r.state === 'unsupported') upMsg.textContent = 'この環境ではオフライン機能が使われていないため、ページを再読み込みすると最新になります。';
+    else upMsg.textContent = '確認できませんでした(通信状況を確認してください): ' + r.message;
+  } }, '🔄 更新を確認');
+  root.append(h('div', { class: 'card' }, h('h2', null, 'アプリの更新・キャッシュ'),
+    h('p', { class: 'muted' }, `現在の版: ${ver || '(ブラウザで開いています)'}`),
+    h('div', { class: 'row gap wrap' }, upBtn,
+      h('button', { class: 'btn', type: 'button', onclick: async () => { if (await confirmBox('アプリの一時データ(キャッシュ)を削除して最新を取り直します。植物・履歴・用土などのデータは消えません。実行しますか?', '削除して再読み込み')) clearCacheAndReload(); } }, '🧹 キャッシュを消して再読み込み')),
+    upMsg,
+    h('p', { class: 'muted' }, '表示が古い・画像が出ないときは、まず「更新を確認」、それでも直らなければキャッシュ削除をお試しください。')));
 
   root.append(h('div', { class: 'card' }, h('h2', null, 'このアプリについて'), h('p', { class: 'muted' }, 'データはこの端末のブラウザ内(IndexedDB)に保存されます。別の端末とは自動同期されません。端末を変える場合はバックアップ→復元を使ってください。')));
 }
