@@ -38,9 +38,9 @@ export function openAiSearch(name, toastFn) {
 }
 export const imageUrl = (q) => `https://www.google.com/search?tbm=isch&q=${enc(q)}`;
 /** 調べさせる項目(固定)。植物登録画面の表示・AIモードの質問文・Geminiの回答項目すべてで共通 */
-export const RESEARCH_ITEMS = ['正式名称・学名', '本来の生息地・原産地', '適温', '最低温度(℃)', '最高温度(℃)', '湿度', '日照条件', '水分条件', '成長サイクル(成長期・休眠期・植え替え推奨)'];
+export const RESEARCH_ITEMS = ['正式名称・学名', '本来の生息地・原産地', '適温', '最低温度(℃)', '最高温度(℃)', '湿度', '日照条件', '水分条件', '成長サイクル(成長期・休眠期・植え替え推奨)', '追肥(遅効性肥料)の推奨時期・施す量', '液肥(ハイポネックス)の推奨時期・希釈割合'];
 /** 入力欄の name と対応(AIの結果を反映する欄) */
-export const FIELDS = ['sciName', 'origin', 'tempOpt', 'tempMin', 'tempMax', 'humidity', 'light', 'moisture'];
+export const FIELDS = ['sciName', 'origin', 'tempOpt', 'tempMin', 'tempMax', 'humidity', 'light', 'moisture', 'slowFert', 'liquidDilution'];
 /* 栽培環境(屋内/屋外)。AI検索・Geminiの質問に反映する。設定は端末に保存 */
 export const ENVS = [['indoor', '屋内'], ['outdoor', '屋外']];
 export const getEnv = () => { try { const v = localStorage.getItem('pk-env'); return v === 'indoor' ? 'indoor' : 'outdoor'; } catch (e) { return 'outdoor'; } };
@@ -48,7 +48,7 @@ export const setEnv = (v) => { try { localStorage.setItem('pk-env', v); } catch 
 export const envLabel = (e) => (e === 'indoor' ? '屋内' : '屋外');
 const envText = (e) => (e === 'indoor' ? '屋内(室内の窓辺・室温管理)で栽培する場合' : '屋外(庭・ベランダなど)で栽培する場合');
 /** AIモード/Gemini用の質問文(名前と環境だけを差し替える固定文) */
-export const aiPrompt = (name, env = getEnv()) => `植物「${name}」について、日本の本州の平地で${envText(env)}を前提に、次の項目を日本語で簡潔に教えてください。\n${RESEARCH_ITEMS.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n成長サイクルは1〜12月の月で示してください。信頼できる情報源も示してください。`;
+export const aiPrompt = (name, env = getEnv()) => `植物「${name}」について、日本の本州の平地で${envText(env)}を前提に、次の項目を日本語で簡潔に教えてください。\n${RESEARCH_ITEMS.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n成長サイクルと肥料の推奨時期は1〜12月の月で示してください。液肥はハイポネックスを使う前提で希釈倍率を具体的に(例: 1000倍・2週間に1回)、追肥は遅効性肥料(置き肥など)の量の目安を示してください。信頼できる情報源も示してください。`;
 /** 通常のGoogle検索用(短いキーワード) */
 export const speciesQuery = (name, env = getEnv()) => `${name} ${envLabel(env)}栽培 学名 原産地 適温 最低温度 最高温度 湿度 日照 水やり 成長期 休眠期 植え替え`;
 export const openTab = (url) => { window.open(url, '_blank', 'noopener,noreferrer'); };
@@ -71,7 +71,9 @@ const PROMPT = (name, env) => `あなたは園芸の専門家です。植物「$
  "humidity": "湿度の目安",
  "light": "日照条件",
  "moisture": "水分条件",
- "cycle": {"growth": [成長期の月の数字], "dormant": [休眠期の月の数字], "repot": [植え替え推奨の月の数字]}
+ "slowFert": "追肥(遅効性肥料)の施し方・量の目安(例: 置き肥を月1回・小粒3〜5個)",
+ "liquidDilution": "液肥(ハイポネックス)の希釈割合と頻度(例: 1000倍・2週間に1回)",
+ "cycle": {"growth": [成長期の月の数字], "dormant": [休眠期の月の数字], "repot": [植え替え推奨の月の数字], "fertSlow": [追肥(遅効性肥料)の推奨月の数字], "fertLiquid": [液肥(ハイポネックス)の推奨月の数字]}
 }
 月は 1〜12 の整数の配列で答えてください。`;
 
@@ -113,7 +115,7 @@ const months = (a) => (Array.isArray(a) ? a.map(Number).filter((n) => n >= 1 && 
 export function toFormValues(d) {
   const num = (v) => (nz(v) !== null && !isNaN(Number(v)) ? Number(v) : null);
   return {
-    fields: { sciName: nz(d.sciName), origin: nz(d.origin), tempOpt: nz(d.tempOpt), tempMin: num(d.tempMin), tempMax: num(d.tempMax), humidity: nz(d.humidity), light: nz(d.light), moisture: nz(d.moisture) },
-    cycle: Object.fromEntries(['growth', 'dormant', 'repot'].map((k) => [k, months((d.cycle || {})[k])])),
+    fields: { sciName: nz(d.sciName), origin: nz(d.origin), tempOpt: nz(d.tempOpt), tempMin: num(d.tempMin), tempMax: num(d.tempMax), humidity: nz(d.humidity), light: nz(d.light), moisture: nz(d.moisture), slowFert: nz(d.slowFert), liquidDilution: nz(d.liquidDilution) },
+    cycle: Object.fromEntries(['growth', 'dormant', 'repot', 'fertSlow', 'fertLiquid'].map((k) => [k, months((d.cycle || {})[k])])),
   };
 }

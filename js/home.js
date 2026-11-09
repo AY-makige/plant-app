@@ -75,6 +75,8 @@ export async function renderHome(root) {
     if ((c.dormant || []).includes(mo) && !C.isDormant(p)) hints.push([p, `${mo}月は休眠期の設定です。休眠期モードに切り替えますか?`]);
     else if ((c.growth || []).includes(mo) && C.isDormant(p)) hints.push([p, `${mo}月は成長期の設定です。成長期に戻しますか?`]);
     if ((c.repot || []).includes(mo)) hints.push([p, `${mo}月は植え替え推奨時期です`]);
+    if ((c.fertSlow || []).includes(mo)) hints.push([p, `${mo}月は追肥(遅効性肥料)の推奨時期です`]);
+    if ((c.fertLiquid || []).includes(mo)) hints.push([p, `${mo}月は液肥の推奨時期です`]);
     if ((c.bloom || []).includes(mo)) hints.push([p, `${mo}月は開花予定時期です`]); }
   if (hints.length) root.append(section('今月のヒント', h('div', { class: 'card' }, hints.slice(0, 12).map(([p, t]) => h('a', { class: 'hint-row', href: `#/plants/${p.id}` }, avatar(p, 'mini'), h('span', null, h('strong', null, ctx.names[p.id]), h('br'), t), icon('chevron', 18))))));
 }

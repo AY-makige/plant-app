@@ -7,7 +7,7 @@ import { careModal } from './care.js';
 import { repotModal, soilCard } from './soil.js';
 import { graveForm } from './memorial.js';
 
-export const CYCLE = [['growth', '成長期', 'growth'], ['dormant', '休眠期', 'dormant'], ['bloom', '開花予定', 'bloom'], ['repot', '植え替え推奨', 'repot']];
+export const CYCLE = [['growth', '成長期', 'growth'], ['dormant', '休眠期', 'dormant'], ['fertSlow', '追肥推奨期(遅効性)', 'fertslow'], ['fertLiquid', '液肥推奨期', 'fertliq'], ['bloom', '開花予定', 'bloom'], ['repot', '植え替え推奨', 'repot']];
 export const STATUSES = ['育成中', '成長中', '休眠中', '療養中', 'その他'];  // 育成中=通常の状態 / 成長中=成長期 / 休眠中=休眠期
 
 function statusModal(p, onDone) {
@@ -41,7 +41,10 @@ export async function renderList(root) {
   const f = { st: '', loc: '' };
   const q = h('input', { type: 'search', placeholder: '名前・学名・産地で検索', 'aria-label': '検索' });
   const chipRow = h('div', { class: 'chips scroll', 'aria-label': '絞り込み' });
-  const grid = h('div', { class: 'pgrid' });
+  const SIZES = [['l', '大'], ['m', '中'], ['s', '小'], ['list', 'リスト']];
+  const getSize = () => { try { const v = localStorage.getItem('pk-tile'); return SIZES.some((x) => x[0] === v) ? v : 'l'; } catch (e) { return 'l'; } };
+  const grid = h('div', { class: 'pgrid' }); grid.dataset.size = getSize();
+  const sizeSeg = h('div', { class: 'seg tile-seg', role: 'radiogroup', 'aria-label': '表示サイズ' }, SIZES.map(([k, l]) => h('button', { type: 'button', class: 'seg-b' + (grid.dataset.size === k ? ' on' : ''), role: 'radio', 'aria-checked': grid.dataset.size === k, onclick: (e) => { grid.dataset.size = k; try { localStorage.setItem('pk-tile', k); } catch (er) { /* noop */ } [...sizeSeg.children].forEach((b) => { const on = b === e.currentTarget; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); }); } }, l)));
   const ext = h('div', { class: 'ext-search' });
   const drawExt = () => {
     ext.innerHTML = ''; const kw = q.value.trim(); if (!kw) return;
@@ -75,6 +78,7 @@ export async function renderList(root) {
   root.append(h('div', { class: 'page-head' }, h('h1', null, 'ライブラリー'), h('span', { class: 'count' }, `${ctx.plants.length}株 / ${ctx.species.length}種`)),
     h('div', { class: 'searchbar' }, q), ext,
     h('label', { class: 'loc-filter' }, h('span', null, '栽培場所'), (() => { const sel = h('select', { 'aria-label': '栽培場所で絞り込み' }, h('option', { value: '' }, 'すべて'), LOCS.map(([k, l]) => h('option', { value: k }, l))); sel.addEventListener('change', () => { f.loc = sel.value; draw(); }); return sel; })()),
+    h('div', { class: 'size-row' }, h('span', { class: 'muted' }, '表示サイズ'), sizeSeg),
     chipRow, grid,
     h('a', { class: 'fab', href: '#/plants/new', 'aria-label': '植物を新規登録' }, icon('plus', 28)));
   drawChips(); draw();
@@ -118,7 +122,7 @@ export async function renderDetail(root, id) {
     else if (detailTab === 'info') panel.append(
       h('div', { class: 'card' }, h('h2', null, '基本情報'), h('dl', null,
         row('原産地・生息地', s.origin), row('適温', s.tempOpt), row('最低〜最高温度', [s.tempMin, s.tempMax].some((x) => x !== '' && x != null) ? `${s.tempMin ?? '—'}℃ 〜 ${s.tempMax ?? '—'}℃` : ''),
-        row('湿度', s.humidity), row('日照', s.light), row('水分条件', s.moisture),
+        row('湿度', s.humidity), row('日照', s.light), row('水分条件', s.moisture), row('追肥(遅効性肥料)', s.slowFert), row('液肥(ハイポネックス)', s.liquidDilution),
         row('購入時期', p.purchaseDate ? fmtDate(p.purchaseDate) : p.purchaseYear ? `${p.purchaseYear}年 ${p.purchaseSeason || ''}` : ''), row('所有期間', start ? lifespanText(start, C.today()) : ''),
         row('栽培場所', locLabel(p.location)), row('購入価格', p.price ? `¥${Number(p.price).toLocaleString()}` : ''), row('購入先', p.shop), row('状態メモ', p.statusNote), row('備考', p.notes))),
       h('div', { class: 'card' }, h('h2', null, '温度設定(温度警告に使用)'), h('dl', null, row('屋外管理の最低温度', temp(p.outdoorMin)), row('室内取り込み目安', temp(p.indoorTemp)), row('高温注意温度', temp(p.highTemp)))),
@@ -185,7 +189,8 @@ export async function renderForm(root, id, params) {
       field('本来の生息地・原産地', v('origin', sp.origin, 'text', { placeholder: '例: 北米(ノースカロライナ州)の湿地' })),
       h('div', { class: 'grid3' }, field('適温', v('tempOpt', sp.tempOpt, 'text', { placeholder: '例: 15〜28℃' })), field('最低温度(℃)', v('tempMin', sp.tempMin, 'number', { step: '0.5' })), field('最高温度(℃)', v('tempMax', sp.tempMax, 'number', { step: '0.5' }))),
       h('div', { class: 'grid3' }, field('湿度', v('humidity', sp.humidity, 'text', { placeholder: '例: 60〜80%' })), field('日照条件', v('light', sp.light, 'text', { placeholder: '例: 日なた・直射日光' })), field('水分条件', v('moisture', sp.moisture, 'text', { placeholder: '例: 常に湿らせる' }))),
-      h('p', { class: 'muted' }, '成長サイクル(月をタップして選択。カレンダーに表示されます)'),
+      h('div', { class: 'grid2' }, field('追肥(遅効性肥料)の目安', v('slowFert', sp.slowFert, 'text', { placeholder: '例: 置き肥を月1回・小粒3〜5個' })), field('液肥(ハイポネックス)の希釈', v('liquidDilution', sp.liquidDilution, 'text', { placeholder: '例: 1000倍・2週間に1回' }))),
+      h('p', { class: 'muted' }, '成長サイクル・肥料推奨期(月をタップして選択。カレンダーに表示されます)'),
       CYCLE.map(([k, label]) => h('div', { class: 'cy-edit' }, h('strong', null, label), monthChips('cycle_' + k, (sp.cycle || {})[k] || []))),
       editing ? h('p', { class: 'note' }, 'ℹ この種類を共有する他の個体にも、種類情報・成長サイクルの変更が反映されます。') : null);
     return wrap;
@@ -259,7 +264,7 @@ export async function renderForm(root, id, params) {
     const cycle = {}; CYCLE.forEach(([k]) => { cycle[k] = fd.getAll('cycle_' + k).map(Number); });
     const nn = (n) => { const x = g(n); return x === '' ? '' : Number(x); };
     let species = ctx.sp[g('speciesId')] || { id: uid() };
-    Object.assign(species, { commonName: commonName || nickname, sciName: g('sciName'), origin: g('origin'), tempOpt: g('tempOpt'), tempMin: nn('tempMin'), tempMax: nn('tempMax'), humidity: g('humidity'), light: g('light'), moisture: g('moisture'), cycle });
+    Object.assign(species, { commonName: commonName || nickname, sciName: g('sciName'), origin: g('origin'), tempOpt: g('tempOpt'), tempMin: nn('tempMin'), tempMax: nn('tempMax'), humidity: g('humidity'), light: g('light'), moisture: g('moisture'), slowFert: g('slowFert'), liquidDilution: g('liquidDilution'), cycle });
     const water = { interval: nn('w_interval'), last: g('w_last'), amount: g('w_amount'), dormantInterval: nn('w_dormantInterval'), dormantAmount: g('w_dormantAmount') };
     const fert = { interval: nn('f_interval'), last: g('f_last'), type: g('f_type'), dilution: g('f_dilution'), amount: g('f_amount'), stopInDormant: fd.has('f_stop') };
     const temps = { outdoorMin: nn('outdoorMin'), indoorTemp: nn('indoorTemp'), highTemp: nn('highTemp') };

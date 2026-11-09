@@ -322,3 +322,16 @@ main{padding-bottom:calc(var(--nav-h) + 32px + var(--safe-b))}
 .sprite-av{overflow:hidden}.pimg .avatar{position:absolute;inset:0}
 
 .env-sel{min-height:36px;padding:.2rem .6rem;border-radius:10px}.loc-filter{display:flex;align-items:center;gap:.5rem;margin:.2rem 0 .5rem;font-size:.9rem}.loc-filter select{flex:0 1 160px;min-height:38px}
+
+.cy-c.fertslow,.lg.fertslow,.tag.fertslow{background:#d9a21f}.cy-c.fertliq,.lg.fertliq,.tag.fertliq{background:#e08a3c}
+
+.size-row{display:flex;align-items:center;gap:.6rem;margin:.2rem 0 .5rem;font-size:.9rem}.tile-seg{margin:0;max-width:280px;flex:1}.tile-seg .seg-b{min-height:34px;padding:.2rem .4rem}
+.pgrid[data-size=m]{grid-template-columns:repeat(3,1fr);gap:.55rem}
+@media(min-width:600px){.pgrid[data-size=m]{grid-template-columns:repeat(4,1fr)}}@media(min-width:900px){.pgrid[data-size=m]{grid-template-columns:repeat(6,1fr)}}
+.pgrid[data-size=m] .pimg{border-radius:16px}.pgrid[data-size=m] .ptxt{font-size:.82rem}.pgrid[data-size=m] .ptxt small{display:none}.pgrid[data-size=m] .pdue{font-size:.65rem;left:5px;bottom:5px;padding:.05rem .4rem}.pgrid[data-size=m] .pimg .badge{left:5px;top:5px;font-size:.62rem;padding:.05rem .4rem}
+.pgrid[data-size=s]{grid-template-columns:repeat(4,1fr);gap:.4rem}
+@media(min-width:600px){.pgrid[data-size=s]{grid-template-columns:repeat(6,1fr)}}@media(min-width:900px){.pgrid[data-size=s]{grid-template-columns:repeat(8,1fr)}}
+.pgrid[data-size=s] .pimg{border-radius:12px;aspect-ratio:1/1}.pgrid[data-size=s] .ptxt{font-size:.68rem;padding:.2rem .1rem 0;overflow:hidden}.pgrid[data-size=s] .ptxt strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pgrid[data-size=s] .ptxt small,.pgrid[data-size=s] .pimg .badge{display:none}.pgrid[data-size=s] .pdue{font-size:.58rem;left:3px;bottom:3px;padding:0 .3rem}.pgrid[data-size=s] .pdue svg{display:none}
+.pgrid[data-size=list]{grid-template-columns:1fr;gap:.4rem}
+.pgrid[data-size=list] .pcard{display:flex;align-items:center;gap:.7rem;background:var(--card);border-radius:16px;padding:.4rem;box-shadow:var(--shadow)}
+.pgrid[data-size=list] .pimg{flex:none;width:64px;aspect-ratio:1/1;border-radius:12px;box-shadow:none}.pgrid[data-size=list] .pimg .badge{display:none}.pgrid[data-size=list] .pdue{position:static;left:auto;bottom:auto;display:none}.pgrid[data-size=list] .ptxt{padding:0;flex:1;min-width:0}.pgrid[data-size=list] .ptxt strong,.pgrid[data-size=list] .ptxt small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
