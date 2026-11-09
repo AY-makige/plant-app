@@ -4,30 +4,45 @@ import { db, uid, MATERIAL_SPRITE } from './db.js';
 import { loadCtx } from './data.js';
 
 const COLORS = ['#b5651d', '#e2b93b', '#a98467', '#6b705c', '#f2efe9', '#8ecae6', '#588157', '#3a5a40', '#d4a373', '#9d8189'];
-const colorOf = (mats, name) => COLORS[Math.max(0, mats.findIndex((m) => m.name === name)) % COLORS.length];
+const colorOf = (mats, name) => { const i = mats.findIndex((m) => m.name === name); if (i >= 0) return COLORS[i % COLORS.length]; let hsh = 0; for (const ch of String(name)) hsh = (hsh * 31 + ch.charCodeAt(0)) >>> 0; return COLORS[hsh % COLORS.length]; };
+const OTHER = '__other__';
+/** 手入力で追加された用土を「用土の種類」に自動登録(次回からサンプルとして選べる) */
+async function registerMats(names) {
+  const have = new Set((await db.all('materials')).map((m) => m.name));
+  for (const n of names) if (n && !have.has(n)) { await db.put('materials', { id: uid(), name: n, builtin: false }); have.add(n); }
+}
 
 /** 配合エディタ: 用土ごとに「部(比率)」を入力。例: 鹿沼土 3 / 軽石 2 / パーライト 2 → 3 : 2 : 2 */
 function mixEditor(mats, initial) {
-  let rows = (initial && initial.length ? normalizeMix(initial) : [{ material: mats[0] && mats[0].name, parts: 1 }]).map((r) => ({ ...r }));
+  const known = (n) => mats.some((m) => m.name === n);
+  const mk = (r) => ({ material: r.material, parts: r.parts, custom: !!r.material && !known(r.material) });
+  let rows = (initial && initial.length ? normalizeMix(initial) : [{ material: mats[0] && mats[0].name, parts: 1 }]).map(mk);
   const el = h('div', { class: 'mix' }); const bar = h('div', { class: 'mixbar' }); const ratio = h('div', { class: 'mix-total ok' });
   const list = h('div');
   const sum = () => rows.reduce((s, r) => s + (Number(r.parts) || 0), 0);
   const refresh = () => {
     const t = sum(); const live = rows.filter((r) => Number(r.parts) > 0);
     ratio.textContent = live.length ? `比率  ${live.map((r) => r.parts).join(' : ')}` : '比率を入力してください'; ratio.className = 'mix-total ' + (live.length ? 'ok' : 'ng');
-    bar.innerHTML = ''; rows.forEach((r) => { if (t && Number(r.parts) > 0) bar.append(h('span', { style: { width: (r.parts / t) * 100 + '%', background: colorOf(mats, r.material) }, title: `${r.material} ${r.parts}` })); });
+    bar.innerHTML = ''; rows.forEach((r) => { if (t && Number(r.parts) > 0) bar.append(h('span', { style: { width: (r.parts / t) * 100 + '%', background: colorOf(mats, r.material || '?') }, title: `${r.material} ${r.parts}` })); });
   };
   const draw = () => {
     list.innerHTML = '';
-    rows.forEach((r, i) => list.append(h('div', { class: 'mix-row' },
-      h('select', { 'aria-label': '用土の種類', onchange: (e) => { r.material = e.target.value; refresh(); } }, mats.map((m) => opt(m.name, m.name, r.material))),
-      h('input', { type: 'number', min: 0.5, step: 0.5, value: r.parts, 'aria-label': '比率(部)', inputMode: 'decimal', oninput: (e) => { r.parts = Number(e.target.value); refresh(); } }), h('span', null, '部'),
-      h('button', { type: 'button', class: 'icon-btn', 'aria-label': '行を削除', onclick: () => { if (rows.length > 1) { rows.splice(i, 1); draw(); } } }, '×'))));
+    rows.forEach((r, i) => {
+      const sel = h('select', { 'aria-label': '用土の種類(サンプルから選ぶ)', onchange: (e) => { if (e.target.value === OTHER) { r.custom = true; r.material = ''; draw(); setTimeout(() => { const t = list.querySelectorAll('.mix-custom input')[i]; t && t.focus(); }, 0); } else { r.custom = false; r.material = e.target.value; draw(); } } },
+        h('optgroup', { label: 'サンプルから選ぶ' }, mats.map((m) => opt(m.name, m.name, r.custom ? null : r.material))),
+        h('optgroup', { label: 'ほかの用土' }, h('option', { value: OTHER, selected: r.custom }, '✎ その他(手入力)')));
+      list.append(h('div', { class: 'mix-block' }, h('div', { class: 'mix-row' }, sel,
+        h('input', { type: 'number', min: 0.5, step: 0.5, value: r.parts, 'aria-label': '比率(部)', inputMode: 'decimal', oninput: (e) => { r.parts = Number(e.target.value); refresh(); } }), h('span', null, '部'),
+        h('button', { type: 'button', class: 'icon-btn', 'aria-label': '行を削除', onclick: () => { if (rows.length > 1) { rows.splice(i, 1); draw(); } } }, '×')),
+        r.custom ? h('div', { class: 'mix-custom' }, h('input', { type: 'text', value: r.material, maxlength: 30, placeholder: '用土の名前を入力(例: ゼオライト)', 'aria-label': '用土の名前(手入力)', oninput: (e) => { r.material = e.target.value.trim(); refresh(); } }), h('small', { class: 'muted' }, '保存すると「用土の種類」に追加され、次回からサンプルとして選べます')) : null));
+    });
     refresh();
   };
-  el.append(bar, list, h('div', { class: 'row between wrap' }, h('button', { type: 'button', class: 'btn small', onclick: () => { rows.push({ material: mats[0] && mats[0].name, parts: 1 }); draw(); } }, '＋ 用土を追加'), ratio));
+  el.append(bar, list, h('div', { class: 'row between wrap' }, h('div', { class: 'row gap wrap' },
+    h('button', { type: 'button', class: 'btn small', onclick: () => { rows.push({ material: mats[0] && mats[0].name, parts: 1, custom: false }); draw(); } }, '＋ 用土を追加(サンプルから)'),
+    h('button', { type: 'button', class: 'btn small', onclick: () => { rows.push({ material: '', parts: 1, custom: true }); draw(); setTimeout(() => { const t = list.querySelectorAll('.mix-custom input'); t.length && t[t.length - 1].focus(); }, 0); } }, '＋ その他(手入力)')), ratio));
   draw();
-  return { el, get mix() { return rows.filter((r) => r.material && Number(r.parts) > 0).map((r) => ({ material: r.material, parts: Number(r.parts) })); }, get total() { return sum(); }, set(m) { rows = normalizeMix(m).map((x) => ({ ...x })); draw(); } };
+  return { el, get mix() { return rows.filter((r) => r.material && Number(r.parts) > 0).map((r) => ({ material: r.material, parts: Number(r.parts) })); }, get total() { return sum(); }, set(m) { rows = normalizeMix(m).map(mk); draw(); } };
 }
 
 export async function recipeModal(recipe, onDone) {
@@ -41,6 +56,7 @@ export async function recipeModal(recipe, onDone) {
         h('button', { class: 'btn primary', type: 'button', onclick: async () => {
           if (!name.value.trim()) return toast('配合名を入力してください');
           if (!ed.mix.length) return toast('用土と比率(1以上)を入力してください');
+          await registerMats(ed.mix.map((m) => m.material));
           await db.put('recipes', { ...(recipe || { id: uid(), createdAt: Date.now() }), name: name.value.trim(), mix: ed.mix, note: note.value });
           close(); toast('保存しました'); onDone && onDone();
         } }, '保存')));
@@ -66,6 +82,7 @@ export async function repotModal(plant, preset, onDone) {
         h('button', { class: 'btn primary', type: 'button', onclick: async () => {
           const pid = plant ? plant.id : plantSel.value; if (!pid) return toast('植物を選んでください');
           let recipeId = rSel.value, recipeName = (recipes.find((r) => r.id === recipeId) || {}).name || '';
+          await registerMats(ed.mix.map((m) => m.material));
           if (saveR.checked && ed.mix.length) { if (!rName.value.trim()) return toast('レシピ名を入力してください'); const r = await db.put('recipes', { id: uid(), name: rName.value.trim(), mix: ed.mix, note: '', createdAt: Date.now() }); recipeId = r.id; recipeName = r.name; }
           await db.put('repots', { id: uid(), plantId: pid, date: date.value || C.today(), recipeId, recipeName, mix: ed.mix, potSize: pot.value, note: note.value, photo: photo.value, ts: Date.now() });
           close(); toast('植え替えを記録しました'); onDone && onDone();

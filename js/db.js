@@ -52,12 +52,22 @@ export const db = {
   },
 };
 
-export const DEFAULT_MATERIALS = ['鹿沼土', '赤玉土', '培養土', '軽石', 'パーライト', 'ピートモス', '水苔', '川砂'];
-export const MATERIAL_SPRITE = { 鹿沼土: 'soil_kanuma', 赤玉土: 'soil_akadama', 培養土: 'soilbag', 軽石: 'soil_pumice', パーライト: 'soil_perlite', ピートモス: 'soil_peat', 水苔: 'soil_moss', 川砂: 'soil_sand' };
+export const DEFAULT_MATERIALS = ['赤玉土', '鹿沼土', '軽石', 'パーライト', 'バーミキュライト', 'ウッドチップ', 'バーク', '培養土', '黒土', '腐葉土', '堆肥', 'ピートモス', 'ミズゴケ', '川砂', 'くん炭', 'ハイドロボール'];
+export const MATERIAL_SPRITE = { 鹿沼土: 'soil_kanuma', 赤玉土: 'soil_akadama', 培養土: 'soilbag', 軽石: 'soil_pumice', パーライト: 'soil_perlite', ピートモス: 'soil_peat', 水苔: 'soil_moss', ミズゴケ: 'soil_moss', 川砂: 'soil_sand' };
 
 export async function ensureDefaults() {
+  // 標準の用土を初期登録(既存データには不足分だけ追加。旧「水苔」は「ミズゴケ」へ統一)
   const mats = await db.all('materials');
-  if (!mats.length) for (const [i, name] of DEFAULT_MATERIALS.entries()) await db.put('materials', { id: 'm-' + i, name, builtin: true });
+  const old = mats.find((m) => m.name === '水苔');
+  if (old && !mats.some((m) => m.name === 'ミズゴケ')) {
+    await db.put('materials', { ...old, name: 'ミズゴケ' });
+    for (const r of await db.all('recipes')) if ((r.mix || []).some((x) => x.material === '水苔')) await db.put('recipes', { ...r, mix: r.mix.map((x) => (x.material === '水苔' ? { ...x, material: 'ミズゴケ' } : x)) });
+    for (const r of await db.all('repots')) if ((r.mix || []).some((x) => x.material === '水苔')) await db.put('repots', { ...r, mix: r.mix.map((x) => (x.material === '水苔' ? { ...x, material: 'ミズゴケ' } : x)) });
+    mats.splice(mats.indexOf(old), 1, { ...old, name: 'ミズゴケ' });
+  }
+  const have = new Set(mats.map((m) => m.name));
+  for (const name of DEFAULT_MATERIALS) if (!have.has(name)) await db.put('materials', { id: 'm-' + name, name, builtin: true });
+  for (const m of mats) if (DEFAULT_MATERIALS.includes(m.name) && !m.builtin) await db.put('materials', { ...m, builtin: true });
   if (!(await db.get('kv', 'settings'))) {
     await db.kvSet('settings', { region: null, notify: { enabled: true, offsets: [3, 1, 0], overdue: true }, margin: 3 });
   }

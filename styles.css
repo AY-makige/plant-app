@@ -335,3 +335,5 @@ main{padding-bottom:calc(var(--nav-h) + 32px + var(--safe-b))}
 .pgrid[data-size=list]{grid-template-columns:1fr;gap:.4rem}
 .pgrid[data-size=list] .pcard{display:flex;align-items:center;gap:.7rem;background:var(--card);border-radius:16px;padding:.4rem;box-shadow:var(--shadow)}
 .pgrid[data-size=list] .pimg{flex:none;width:64px;aspect-ratio:1/1;border-radius:12px;box-shadow:none}.pgrid[data-size=list] .pimg .badge{display:none}.pgrid[data-size=list] .pdue{position:static;left:auto;bottom:auto;display:none}.pgrid[data-size=list] .ptxt{padding:0;flex:1;min-width:0}.pgrid[data-size=list] .ptxt strong,.pgrid[data-size=list] .ptxt small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.mix-block{margin:.2rem 0}.mix-custom{display:flex;flex-direction:column;gap:2px;margin:.15rem 0 .5rem;padding-left:.2rem}.mix-custom input{width:100%}.mix-row select{min-width:0}
