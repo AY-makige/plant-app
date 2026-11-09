@@ -159,9 +159,11 @@ export async function renderDetail(root, id) {
   drawPanel();
 }
 
+/** 「追肥推奨期(遅効性)」のように括弧つきのラベルは、括弧の手前で改行して2行表示にする */
+const cyLabel = (label) => { const i = label.indexOf('('); return i > 0 ? [label.slice(0, i), h('br'), label.slice(i)] : label; };
 export function cycleBars(s) {
   const c = s.cycle || {};
-  return h('div', { class: 'cycle' }, CYCLE.map(([k, label, cls]) => h('div', { class: 'cy-row' }, h('span', { class: 'cy-l' }, label),
+  return h('div', { class: 'cycle' }, CYCLE.map(([k, label, cls]) => h('div', { class: 'cy-row' }, h('span', { class: 'cy-l' }, cyLabel(label)),
     h('div', { class: 'cy-bar' }, MONTHS.map((m, i) => h('span', { class: 'cy-c ' + ((c[k] || []).includes(i + 1) ? 'on ' + cls : ''), title: m }, i + 1))))));
 }
 
@@ -191,7 +193,7 @@ export async function renderForm(root, id, params) {
       h('div', { class: 'grid3' }, field('湿度', v('humidity', sp.humidity, 'text', { placeholder: '例: 60〜80%' })), field('日照条件', v('light', sp.light, 'text', { placeholder: '例: 日なた・直射日光' })), field('水分条件', v('moisture', sp.moisture, 'text', { placeholder: '例: 常に湿らせる' }))),
       h('div', { class: 'grid2' }, field('追肥(遅効性肥料)の目安', v('slowFert', sp.slowFert, 'text', { placeholder: '例: 置き肥を月1回・小粒3〜5個' })), field('液肥(ハイポネックス)の希釈', v('liquidDilution', sp.liquidDilution, 'text', { placeholder: '例: 1000倍・2週間に1回' }))),
       h('p', { class: 'muted' }, '成長サイクル・肥料推奨期(月をタップして選択。カレンダーに表示されます)'),
-      CYCLE.map(([k, label]) => h('div', { class: 'cy-edit' }, h('strong', null, label), monthChips('cycle_' + k, (sp.cycle || {})[k] || []))),
+      CYCLE.map(([k, label]) => h('div', { class: 'cy-edit' }, h('strong', null, cyLabel(label)), monthChips('cycle_' + k, (sp.cycle || {})[k] || []))),
       editing ? h('p', { class: 'note' }, 'ℹ この種類を共有する他の個体にも、種類情報・成長サイクルの変更が反映されます。') : null);
     return wrap;
   };
