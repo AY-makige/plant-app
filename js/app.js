@@ -1,6 +1,6 @@
 // app.js — ルーター・初期化
 import { ensureDefaults, db } from './db.js';
-import { h, sprite, empty, toast } from './ui.js';
+import { h, sprite, empty, toast, icon } from './ui.js';
 import { renderHome } from './home.js';
 import { renderList, renderDetail, renderForm } from './plants.js';
 import { renderCalendar } from './calendar.js';
@@ -10,15 +10,8 @@ import { renderMemorial, renderGrave } from './memorial.js';
 import { renderSettings } from './settings.js';
 import * as N from './notify.js';
 
-const NAV = [
-  ['home', 'ホーム', '<path d="M3 11l9-8 9 8v10a1 1 0 01-1 1h-5v-7H9v7H4a1 1 0 01-1-1z"/>'],
-  ['plants', '植物図鑑', '<path d="M12 21V11M12 11c0-4 3-7 8-7 0 5-3 8-8 7zM12 14c0-3-2-5-6-5 0 4 2 6 6 5z"/>'],
-  ['calendar', 'カレンダー', '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>'],
-  ['tasks', '管理タスク', '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/>'],
-  ['soil', '用土管理', '<path d="M4 20h16M6 20c0-5 2-8 6-8s6 3 6 8M9 12c0-3 1-5 3-7 2 2 3 4 3 7"/>'],
-  ['memorial', 'メモリアル', '<path d="M12 21s-8-5-8-11a4.5 4.5 0 018-3 4.5 4.5 0 018 3c0 6-8 11-8 11z"/>'],
-];
-const svg = (p) => h('span', { class: 'ico', html: `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>` });
+const NAV = [['home', 'ホーム', 'home'], ['plants', '植物図鑑', 'plants'], ['calendar', 'カレンダー', 'calendar'], ['tasks', 'タスク', 'tasks'], ['soil', '用土', 'soil'], ['memorial', 'メモリアル', 'grave']];
+const TITLES = Object.fromEntries([...NAV.map(([k, l]) => [k, l]), ['settings', '設定']]);
 
 const routes = [
   [/^#\/home$/, 'home', (r) => renderHome(r)],
@@ -46,7 +39,7 @@ async function route() {
     if (my !== token) return;
     main.replaceChildren(tmp); window.scrollTo(0, 0);
     document.querySelectorAll('[data-nav]').forEach((a) => a.classList.toggle('on', a.dataset.nav === nav));
-    document.body.dataset.route = nav;
+    document.body.dataset.route = nav; document.getElementById('top-title').textContent = TITLES[nav] || '植物管理'; main.classList.remove('enter'); void main.offsetWidth; main.classList.add('enter');
     return;
   }
   location.hash = '#/home';
@@ -54,16 +47,17 @@ async function route() {
 
 async function init() {
   await ensureDefaults();
-  const items = NAV.map(([k, l, p]) => h('a', { href: `#/${k}`, 'data-nav': k, class: 'nav-item' }, svg(p), h('span', null, l)));
+  const items = NAV.map(([k, l, ic]) => h('a', { href: `#/${k}`, 'data-nav': k, class: 'nav-item' }, icon(ic, 24), h('span', null, l)));
   document.getElementById('nav').append(...items);
-  document.getElementById('side-extra').append(h('a', { href: '#/settings', 'data-nav': 'settings', class: 'nav-item' }, svg('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>'), h('span', null, '設定')));
-  document.getElementById('top-settings').href = '#/settings';
+  document.getElementById('side-extra').append(h('a', { href: '#/settings', 'data-nav': 'settings', class: 'nav-item' }, icon('settings', 24), h('span', null, '設定')));
+  const ts = document.getElementById('top-settings'); ts.href = '#/settings'; ts.append(icon('settings', 24));
   window.addEventListener('hashchange', route);
+  window.addEventListener('install-ready', () => { if (['home', 'settings'].includes(document.body.dataset.route)) route(); });
   await route();
 
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* noop */ }
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-    navigator.serviceWorker.register('sw.js').catch((e) => console.warn('SW登録失敗', e));
+    navigator.serviceWorker.register('sw.js', { scope: './' }).catch((e) => console.warn('SW登録失敗', e));
   }
   const check = () => N.checkAndNotify().catch(() => 0);
   check(); document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });

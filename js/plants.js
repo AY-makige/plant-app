@@ -1,5 +1,5 @@
 // plants.js — 植物図鑑(一覧・詳細・登録/編集)
-import { h, sprite, empty, field, opt, monthChips, modal, confirmBox, toast, photoInput, fmtDate, relDays, ownStart, lifespanText, PLANT_SPRITES, spriteName, MONTHS, C } from './ui.js';
+import { h, sprite, icon, empty, field, opt, monthChips, modal, confirmBox, toast, photoInput, fmtDate, relDays, ownStart, lifespanText, PLANT_SPRITES, spriteName, MONTHS, C } from './ui.js';
 import { db, uid } from './db.js';
 import { loadCtx, deleteLog, deletePlant } from './data.js';
 import { careModal } from './care.js';
@@ -18,92 +18,113 @@ const statusBadge = (s) => h('span', { class: 'badge st-' + ({ 成長中: 'grow'
 /* ───────── 一覧 ───────── */
 export async function renderList(root) {
   const ctx = await loadCtx();
+  const f = { st: '', loc: '' };
   const q = h('input', { type: 'search', placeholder: '名前・学名・産地で検索', 'aria-label': '検索' });
-  const fs = h('select', { 'aria-label': '状態で絞り込み' }, opt('', 'すべての状態'), STATUSES.map((s) => opt(s, s)));
-  const fl = h('select', { 'aria-label': '管理場所で絞り込み' }, opt('', '屋外・室内'), opt('outdoor', '屋外'), opt('inside', '室内'));
-  const fsp = h('select', { 'aria-label': '種類で絞り込み' }, opt('', 'すべての種類'), ctx.species.sort((a, b) => a.commonName.localeCompare(b.commonName, 'ja')).map((s) => opt(s.id, s.commonName)));
-  const grid = h('div', { class: 'cards' });
+  const chipRow = h('div', { class: 'chips scroll', 'aria-label': '絞り込み' });
+  const grid = h('div', { class: 'pgrid' });
+  const drawChips = () => {
+    chipRow.innerHTML = '';
+    const mk = (key, val, label) => h('button', { class: 'chip-btn' + (f[key] === val ? ' on' : ''), type: 'button', onclick: () => { f[key] = f[key] === val && val !== '' ? '' : val; drawChips(); draw(); } }, label);
+    chipRow.append(mk('st', '', 'すべて'), STATUSES.map((s) => mk('st', s, s)), h('span', { class: 'sep' }), mk('loc', 'outdoor', '屋外'), mk('loc', 'indoor', '室内'));
+  };
   const draw = () => {
     grid.innerHTML = '';
     const kw = q.value.trim().toLowerCase();
     const list = ctx.plants.filter((p) => {
       const s = ctx.sp[p.speciesId] || {};
-      if (fs.value && p.status !== fs.value) return false;
-      if (fl.value && (p.location === 'indoor' ? 'inside' : 'outdoor') !== fl.value) return false;
-      if (fsp.value && p.speciesId !== fsp.value) return false;
+      if (f.st && p.status !== f.st) return false;
+      if (f.loc && (p.location === 'indoor' ? 'indoor' : 'outdoor') !== f.loc) return false;
       if (!kw) return true;
       return [p.nickname, s.commonName, s.sciName, s.origin, p.notes].join(' ').toLowerCase().includes(kw);
     });
     if (!list.length) { grid.append(empty('terrarium', ctx.plants.length ? '条件に合う植物がありません' : 'まだ植物が登録されていません', ctx.plants.length ? null : h('a', { class: 'btn primary', href: '#/plants/new' }, '最初の植物を登録'))); return; }
     for (const p of list) {
-      const s = ctx.sp[p.speciesId] || {}; const w = C.nextDue(p, 'water');
-      grid.append(h('a', { class: 'card plant-card', href: `#/plants/${p.id}` }, avatar(p, 'cover'),
-        h('div', { class: 'pc-body' }, h('strong', null, ctx.names[p.id]), h('small', { class: 'muted' }, s.commonName && s.commonName !== ctx.names[p.id] ? s.commonName : s.sciName || ''),
-          h('div', { class: 'row gap' }, statusBadge(p.status), w.date ? h('span', { class: 'chip-s' + (C.diffDays(w.date, C.today()) <= 0 ? ' due' : '') }, h('img', { src: 'assets/sprites/i_drop.png', alt: '' }), relDays(C.diffDays(w.date, C.today()))) : w.stopped ? h('span', { class: 'chip-s' }, '水やり停止中') : null))));
+      const s = ctx.sp[p.speciesId] || {}; const w = C.nextDue(p, 'water'); const dl = w.date ? C.diffDays(w.date, C.today()) : null;
+      grid.append(h('a', { class: 'pcard', href: `#/plants/${p.id}` },
+        h('div', { class: 'pimg' }, avatar(p, 'cover'), statusBadge(p.status),
+          dl != null ? h('span', { class: 'pdue' + (dl < 0 ? ' over' : dl === 0 ? ' today' : '') }, icon('drop', 13), relDays(dl)) : w.stopped ? h('span', { class: 'pdue' }, '水やり停止中') : null),
+        h('div', { class: 'ptxt' }, h('strong', null, ctx.names[p.id]), h('small', null, s.commonName && s.commonName !== ctx.names[p.id] ? s.commonName : s.sciName || ''))));
     }
   };
-  [q, fs, fl, fsp].forEach((e) => e.addEventListener('input', draw));
-  root.append(h('div', { class: 'page-head' }, h('h1', null, '植物図鑑'), h('a', { class: 'btn primary', href: '#/plants/new' }, '＋ 新規登録')),
-    h('div', { class: 'filters' }, q, fs, fl, fsp), h('p', { class: 'muted' }, `所持 ${ctx.plants.length} 個体 / 種類 ${ctx.species.length}`), grid);
-  draw();
+  q.addEventListener('input', draw);
+  root.append(h('div', { class: 'page-head' }, h('h1', null, '植物図鑑'), h('span', { class: 'count' }, `${ctx.plants.length}株 / ${ctx.species.length}種`)),
+    h('div', { class: 'searchbar' }, q), chipRow, grid,
+    h('a', { class: 'fab', href: '#/plants/new', 'aria-label': '植物を新規登録' }, icon('plus', 28)));
+  drawChips(); draw();
 }
 
 /* ───────── 詳細 ───────── */
+let detailTab = 'care';
 export async function renderDetail(root, id) {
   const ctx = await loadCtx();
   const p = ctx.plants.find((x) => x.id === id);
   if (!p) { root.append(empty('i_warn', '植物が見つかりません', h('a', { class: 'btn', href: '#/plants' }, '図鑑へ戻る'))); return; }
   const s = ctx.sp[p.speciesId] || {};
-  const reload = () => { root.innerHTML = ''; renderDetail(root, id); };
+  const reload = () => { const y = window.scrollY; root.innerHTML = ''; renderDetail(root, id).then(() => window.scrollTo(0, y)); };
   const [logs, repots, fc] = await Promise.all([db.byPlant('logs', id), db.byPlant('repots', id), db.kvGet('forecast', null)]);
   logs.sort((a, b) => b.date.localeCompare(a.date) || b.ts - a.ts); repots.sort((a, b) => b.date.localeCompare(a.date));
   const warns = fc ? C.computeWarnings([p], ctx.names, fc.data.daily, 3) : [];
-  const dorm = C.isDormant(p);
-  const start = ownStart(p);
+  const dorm = C.isDormant(p); const start = ownStart(p);
 
   const sched = (kind) => {
     const n = C.nextDue(p, kind); const cfg = p[kind === 'water' ? 'water' : 'fert'] || {};
-    const label = kind === 'water' ? '水やり' : '液体肥料';
-    return h('div', { class: 'sched' }, h('h3', null, h('img', { src: `assets/sprites/${kind === 'water' ? 'i_drop' : 'mister'}.png`, alt: '' }), label, dorm ? h('span', { class: 'badge st-dorm' }, '休眠期設定') : null),
+    const label = kind === 'water' ? '水やり' : '液体肥料'; const dl = n.date ? C.diffDays(n.date, C.today()) : null;
+    return h('div', { class: 'card sched' }, h('div', { class: 'row between' }, h('h3', { class: 'kind ' + kind }, icon(kind === 'water' ? 'drop' : 'flask', 18), label), dorm ? h('span', { class: 'badge st-dorm' }, '休眠期設定') : null),
       n.stopped ? h('p', { class: 'muted' }, '休眠期のため停止中') : !n.date ? h('p', { class: 'muted' }, '間隔が未設定です(編集で設定)') :
-        h('div', null, h('div', { class: 'big-date' + (C.diffDays(n.date, C.today()) < 0 ? ' over' : '') }, fmtDate(n.date), h('small', null, ` (${relDays(C.diffDays(n.date, C.today()))})`)),
+        h('div', null, h('div', { class: 'big-date' + (dl < 0 ? ' over' : '') }, fmtDate(n.date), h('small', null, ` (${relDays(dl)})`)),
           h('small', { class: 'muted' }, `${n.interval}日ごと / 最終: ${cfg.last ? fmtDate(cfg.last) : '未記録'}`)),
-      kind === 'water' ? h('small', { class: 'muted' }, `量・方法: ${C.effWater(p).amount || '—'}`) : h('small', { class: 'muted' }, `${cfg.type || '—'} ${cfg.dilution ? ' / ' + cfg.dilution : ''}${cfg.amount ? ' / ' + cfg.amount : ''}`),
-      h('button', { class: 'btn small primary', onclick: () => careModal(p, kind, reload) }, `${label}を記録`));
+      kind === 'water' ? h('small', { class: 'muted' }, `量・方法: ${C.effWater(p).amount || '—'}`) : h('small', { class: 'muted' }, `${cfg.type || '—'}${cfg.dilution ? ' / ' + cfg.dilution : ''}${cfg.amount ? ' / ' + cfg.amount : ''}`));
   };
-
   const row = (k, v) => (v || v === 0 ? h('div', { class: 'kv' }, h('dt', null, k), h('dd', null, v)) : null);
+  const temp = (v) => (v !== '' && v != null ? `${v}℃` : '未設定');
+  const qa = (ic, label, fn, cls = '') => h('button', { class: 'qa ' + cls, type: 'button', onclick: fn }, h('span', { class: 'qa-ic' }, icon(ic, 24)), h('span', null, label));
+
+  const tabs = { care: '', info: '', history: '' };
+  const panel = h('div', { class: 'tab-panel' });
+  const drawPanel = () => {
+    panel.innerHTML = '';
+    if (detailTab === 'care') panel.append(
+      warns.length ? h('div', { class: 'alerts' }, warns.map((w) => h('div', { class: 'warn ' + w.level }, h('strong', null, w.label), ' ', w.msg))) : null,
+      h('div', { class: 'grid-auto' }, sched('water'), sched('fert')),
+      h('div', { class: 'card' }, h('h2', null, '成長サイクル(種類共通)'), cycleBars(s)));
+    else if (detailTab === 'info') panel.append(
+      h('div', { class: 'card' }, h('h2', null, '基本情報'), h('dl', null,
+        row('原産地・生息地', s.origin), row('適温', s.tempOpt), row('最低〜最高温度', [s.tempMin, s.tempMax].some((x) => x !== '' && x != null) ? `${s.tempMin ?? '—'}℃ 〜 ${s.tempMax ?? '—'}℃` : ''),
+        row('湿度', s.humidity), row('日照', s.light), row('水分条件', s.moisture),
+        row('購入時期', p.purchaseDate ? fmtDate(p.purchaseDate) : p.purchaseYear ? `${p.purchaseYear}年 ${p.purchaseSeason || ''}` : ''), row('所有期間', start ? lifespanText(start, C.today()) : ''),
+        row('購入価格', p.price ? `¥${Number(p.price).toLocaleString()}` : ''), row('購入先', p.shop), row('状態メモ', p.statusNote), row('備考', p.notes))),
+      h('div', { class: 'card' }, h('h2', null, '温度設定(温度警告に使用)'), h('dl', null, row('屋外管理の最低温度', temp(p.outdoorMin)), row('室内取り込み目安', temp(p.indoorTemp)), row('高温注意温度', temp(p.highTemp)))),
+      h('div', { class: 'card danger-zone' }, h('h2', null, '植物の終了'),
+        h('p', { class: 'muted' }, '枯れてしまった場合は「削除」ではなくメモリアルへ移動すると、記録として残せます。'),
+        h('div', { class: 'row gap wrap' },
+          h('button', { class: 'btn', onclick: () => graveForm(p, s, ctx.names, () => { location.hash = '#/memorial'; }) }, icon('grave', 20), '枯死として記録'),
+          h('button', { class: 'btn danger', onclick: async () => {
+            if (await confirmBox(`「${ctx.names[p.id]}」を完全に削除します。\n水やり・施肥・植え替えの履歴も一緒に削除され、元に戻せません。\n(枯れた場合はメモリアルへの移動をおすすめします)`, '完全に削除', true)) { await deletePlant(id, true); toast('削除しました'); location.hash = '#/plants'; }
+          } }, '完全に削除'))));
+    else panel.append(
+      h('div', { class: 'card' }, h('div', { class: 'row between' }, h('h2', null, '植え替え・用土履歴'), h('button', { class: 'btn small', onclick: () => repotModal(p, null, reload) }, '＋ 記録')),
+        repots.length ? repots.map((r) => h('div', { class: 'log' }, h('strong', null, fmtDate(r.date)), ' ', h('span', null, r.recipeName || '配合記録なし'), h('div', { class: 'muted' }, (r.mix || []).map((m) => `${m.material} ${m.pct}%`).join(' / ')), r.potSize ? h('div', { class: 'muted' }, '鉢: ' + r.potSize) : null, r.note ? h('div', null, r.note) : null, r.photo ? h('img', { class: 'thumb', src: r.photo, alt: '' }) : null)) : h('p', { class: 'muted' }, '記録なし')),
+      h('div', { class: 'card' }, h('h2', null, `実施履歴(${logs.length}件)`),
+        logs.length ? logs.slice(0, 60).map((l) => h('div', { class: 'log row between' }, h('div', null, h('strong', null, `${fmtDate(l.date)} ${l.time || ''}`), ' ', h('span', { class: 'kind ' + l.kind }, icon(l.kind === 'water' ? 'drop' : 'flask', 14), l.kind === 'water' ? '水やり' : '肥料'), l.dormant ? h('span', { class: 'badge st-dorm' }, '休眠期') : null,
+          h('div', { class: 'muted' }, [l.method, l.amount, l.fertType, l.dilution].filter(Boolean).join(' / ')), l.note ? h('div', null, l.note) : null),
+        h('button', { class: 'icon-btn', 'aria-label': '履歴を削除', onclick: async () => { if (await confirmBox('この履歴を削除します。最終実施日・次回予定日は残りの履歴から再計算されます。', '削除', true)) { await deleteLog(l); reload(); } } }, icon('trash', 20)))) : h('p', { class: 'muted' }, '記録なし')));
+  };
+  const seg = h('div', { class: 'seg', role: 'tablist' }, [['care', 'ケア'], ['info', '情報'], ['history', `履歴`]].map(([k, l]) =>
+    h('button', { class: 'seg-b' + (detailTab === k ? ' on' : ''), role: 'tab', 'aria-selected': detailTab === k, onclick: (e) => { detailTab = k; [...seg.children].forEach((c) => { c.classList.remove('on'); c.setAttribute('aria-selected', 'false'); }); e.currentTarget.classList.add('on'); e.currentTarget.setAttribute('aria-selected', 'true'); drawPanel(); } }, l)));
+
   root.append(
-    h('div', { class: 'page-head' }, h('a', { class: 'back', href: '#/plants' }, '← 図鑑'), h('div', { class: 'row gap wrap' },
-      h('a', { class: 'btn small', href: `#/plants/${id}/edit` }, '編集'))),
-    h('div', { class: 'detail-hero card' }, avatar(p, 'hero'), h('div', null,
-      h('h1', null, ctx.names[p.id]), h('div', null, s.commonName), h('small', { class: 'muted sci' }, s.sciName || ''),
-      h('div', { class: 'row gap wrap' }, statusBadge(p.status), h('span', { class: 'badge' }, p.location === 'indoor' ? '室内管理' : '屋外管理')),
-      h('div', { class: 'row gap wrap mt' },
-        h('button', { class: 'btn small', onclick: async () => { p.status = dorm ? '成長中' : '休眠中'; await db.put('plants', p); toast(dorm ? '成長期(通常設定)に戻しました' : '休眠期モードにしました'); reload(); } }, dorm ? '☀ 成長期に戻す' : '❄ 休眠期モードにする')))),
-    warns.length ? h('div', { class: 'warn-list' }, warns.map((w) => h('div', { class: 'warn ' + w.level }, h('strong', null, w.label), ' ', w.msg))) : null,
-    h('div', { class: 'grid-auto' }, h('div', { class: 'card' }, sched('water')), h('div', { class: 'card' }, sched('fert'))),
-    h('div', { class: 'card' }, h('h2', null, '基本情報'), h('dl', null,
-      row('原産地・生息地', s.origin), row('適温', s.tempOpt), row('最低〜最高温度', [s.tempMin, s.tempMax].some((x) => x !== '' && x != null) ? `${s.tempMin ?? '—'}℃ 〜 ${s.tempMax ?? '—'}℃` : ''),
-      row('湿度', s.humidity), row('日照', s.light), row('水分条件', s.moisture),
-      row('購入時期', p.purchaseDate ? fmtDate(p.purchaseDate) : p.purchaseYear ? `${p.purchaseYear}年 ${p.purchaseSeason || ''}` : ''), row('所有期間', start ? lifespanText(start, C.today()) : ''),
-      row('購入価格', p.price ? `¥${Number(p.price).toLocaleString()}` : ''), row('購入先', p.shop), row('状態メモ', p.statusNote), row('備考', p.notes))),
-    h('div', { class: 'card' }, h('h2', null, '温度設定(温度警告に使用)'), h('dl', null,
-      row('屋外管理の最低温度', p.outdoorMin !== '' && p.outdoorMin != null ? `${p.outdoorMin}℃` : '未設定'), row('室内取り込み目安', p.indoorTemp !== '' && p.indoorTemp != null ? `${p.indoorTemp}℃` : '未設定'), row('高温注意温度', p.highTemp !== '' && p.highTemp != null ? `${p.highTemp}℃` : '未設定'))),
-    h('div', { class: 'card' }, h('h2', null, '成長サイクル(種類共通)'), cycleBars(s)),
-    h('div', { class: 'card' }, h('div', { class: 'row between' }, h('h2', null, '植え替え・用土履歴'), h('button', { class: 'btn small', onclick: () => repotModal(p, null, reload) }, '＋ 植え替えを記録')),
-      repots.length ? repots.map((r) => h('div', { class: 'log' }, h('strong', null, fmtDate(r.date)), ' ', h('span', null, r.recipeName || '配合記録なし'), h('div', { class: 'muted' }, (r.mix || []).map((m) => `${m.material} ${m.pct}%`).join(' / ')), r.potSize ? h('div', { class: 'muted' }, '鉢: ' + r.potSize) : null, r.note ? h('div', null, r.note) : null, r.photo ? h('img', { class: 'thumb', src: r.photo, alt: '' }) : null)) : h('p', { class: 'muted' }, '記録なし')),
-    h('div', { class: 'card' }, h('h2', null, `実施履歴(${logs.length}件)`),
-      logs.length ? logs.slice(0, 60).map((l) => h('div', { class: 'log row between' }, h('div', null, h('strong', null, `${fmtDate(l.date)} ${l.time || ''}`), ' ', h('span', { class: 'badge' }, l.kind === 'water' ? '水やり' : '肥料'), l.dormant ? h('span', { class: 'badge st-dorm' }, '休眠期') : null,
-        h('div', { class: 'muted' }, [l.method, l.amount, l.fertType, l.dilution].filter(Boolean).join(' / ')), l.note ? h('div', null, l.note) : null),
-      h('button', { class: 'icon-btn', 'aria-label': '履歴を削除', onclick: async () => { if (await confirmBox('この履歴を削除します。最終実施日・次回予定日は残りの履歴から再計算されます。', '削除', true)) { await deleteLog(l); reload(); } } }, '🗑'))) : h('p', { class: 'muted' }, '記録なし')),
-    h('div', { class: 'card danger-zone' }, h('h2', null, '植物の終了'),
-      h('p', { class: 'muted' }, '枯れてしまった場合は「削除」ではなくメモリアルへ移動すると、記録として残せます。'),
-      h('div', { class: 'row gap wrap' },
-        h('button', { class: 'btn', onclick: () => graveForm(p, s, ctx.names, () => { location.hash = '#/memorial'; }) }, '🕊 枯死として記録(メモリアルへ)'),
-        h('button', { class: 'btn danger', onclick: async () => {
-          if (await confirmBox(`「${ctx.names[p.id]}」を完全に削除します。\n水やり・施肥・植え替えの履歴も一緒に削除され、元に戻せません。\n(枯れた場合はメモリアルへの移動をおすすめします)`, '完全に削除', true)) { await deletePlant(id, true); toast('削除しました'); location.hash = '#/plants'; }
-        } }, '完全に削除'))));
+    h('div', { class: 'd-hero' }, avatar(p, 'dh'),
+      h('a', { class: 'fl-btn left', href: '#/plants', 'aria-label': '図鑑へ戻る' }, icon('back', 22)),
+      h('a', { class: 'fl-btn right', href: `#/plants/${id}/edit`, 'aria-label': '編集' }, icon('edit', 20))),
+    h('div', { class: 'd-sheet' },
+      h('h1', null, ctx.names[p.id]), h('div', { class: 'd-sub' }, s.commonName && s.commonName !== ctx.names[p.id] ? s.commonName + ' ・ ' : '', h('i', null, s.sciName || '')),
+      h('div', { class: 'row gap wrap mt' }, statusBadge(p.status), h('span', { class: 'badge' }, p.location === 'indoor' ? '室内管理' : '屋外管理')),
+      h('div', { class: 'qas' },
+        qa('drop', '水やり', () => careModal(p, 'water', reload), 'water'), qa('flask', '肥料', () => careModal(p, 'fert', reload), 'fert'),
+        qa(dorm ? 'sun' : 'snow', dorm ? '成長期へ' : '休眠期へ', async () => { p.status = dorm ? '成長中' : '休眠中'; await db.put('plants', p); toast(dorm ? '成長期(通常設定)に戻しました' : '休眠期モードにしました'); reload(); }, 'dorm'),
+        qa('pot', '植え替え', () => repotModal(p, null, reload), 'pot')),
+      seg, panel));
+  drawPanel();
 }
 
 export function cycleBars(s) {

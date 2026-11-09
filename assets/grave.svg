@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 220" role="img" aria-label="洋風の墓石">
+  <defs>
+    <linearGradient id="st" x1="0" x2="1"><stop offset="0" stop-color="#e3e7ea"/><stop offset="1" stop-color="#bcc4ca"/></linearGradient>
+    <linearGradient id="gr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8fcb6a"/><stop offset="1" stop-color="#5c9c46"/></linearGradient>
+  </defs>
+  <ellipse cx="100" cy="204" rx="92" ry="14" fill="url(#gr)"/>
+  <path d="M14 204c20-14 44-18 86-18s66 4 86 18z" fill="#6fae56"/>
+  <rect x="38" y="178" width="124" height="20" rx="5" fill="#a9b2b9" stroke="#8d979e" stroke-width="2"/>
+  <path d="M52 182V92a48 48 0 0 1 96 0v90z" fill="url(#st)" stroke="#8d979e" stroke-width="2.5"/>
+  <path d="M62 178V94a38 38 0 0 1 76 0v84" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="3"/>
+  <rect x="95" y="68" width="10" height="60" rx="2" fill="#8d979e"/>
+  <rect x="77" y="86" width="46" height="10" rx="2" fill="#8d979e"/>
+  <path d="M60 170c8-6 14-2 18-8M142 172c-8-6-14-2-18-8" fill="none" stroke="#4f8a3c" stroke-width="3" stroke-linecap="round"/>
+  <g fill="#5c9c46"><ellipse cx="66" cy="166" rx="6" ry="3" transform="rotate(-30 66 166)"/><ellipse cx="136" cy="167" rx="6" ry="3" transform="rotate(30 136 167)"/><ellipse cx="76" cy="160" rx="5" ry="2.5" transform="rotate(-50 76 160)"/></g>
+  <g><circle cx="46" cy="190" r="5" fill="#fff"/><circle cx="46" cy="190" r="2" fill="#f7c948"/><circle cx="158" cy="192" r="5" fill="#f7a8c4"/><circle cx="158" cy="192" r="2" fill="#f7c948"/><circle cx="30" cy="196" r="4" fill="#d7b6f0"/><circle cx="30" cy="196" r="1.6" fill="#f7c948"/></g>
+</svg>

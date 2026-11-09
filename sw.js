@@ -1,9 +1,12 @@
 /* sw.js — オフライン用キャッシュ + バックグラウンド通知チェック */
 importScripts('js/core.js');
-const CACHE = 'plantkeeper-v1';
-const SHELL = ['./', 'index.html', 'styles.css', 'manifest.webmanifest', 'js/core.js', 'js/app.js', 'js/db.js', 'js/ui.js', 'js/data.js', 'js/care.js', 'js/plants.js', 'js/soil.js', 'js/memorial.js', 'js/tasks.js', 'js/calendar.js', 'js/home.js', 'js/settings.js', 'js/weather.js', 'js/notify.js', 'icons/icon-192.png', 'icons/icon-512.png'];
+const CACHE = 'plantkeeper-v3';
+const SHELL = ['./', 'index.html', 'styles.css', 'manifest.webmanifest', 'js/core.js', 'js/app.js', 'js/db.js', 'js/ui.js', 'js/data.js', 'js/care.js', 'js/plants.js', 'js/soil.js', 'js/memorial.js', 'js/tasks.js', 'js/calendar.js', 'js/home.js', 'js/settings.js', 'js/weather.js', 'js/notify.js', 'js/pwa.js', 'assets/grave.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
 
-self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
+self.addEventListener('install', (e) => {
+  // addAll は1つでも404だと全体が失敗してSWが入らない(=インストール不可)ため、個別に保存して失敗を無視する
+  e.waitUntil(caches.open(CACHE).then((c) => Promise.all(SHELL.map((u) => c.add(u).catch(() => null)))).then(() => self.skipWaiting()));
+});
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 
 self.addEventListener('fetch', (e) => {

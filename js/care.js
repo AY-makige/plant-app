@@ -1,6 +1,16 @@
 // care.js — 水やり/施肥の実施入力モーダル
 import { h, modal, field, toast, C } from './ui.js';
-import { recordCare } from './data.js';
+import { recordCare, deleteLog } from './data.js';
+
+/** ワンタップで「今日実施した」を記録(既定の量・種類を使用)。トーストから取り消せる */
+export async function quickCare(plant, kind, onDone) {
+  const w = C.effWater(plant), f = plant.fert || {};
+  const log = await recordCare(plant, kind, kind === 'water' ? { amount: w.amount } : { amount: f.amount, fertType: f.type, dilution: f.dilution });
+  if (navigator.vibrate) navigator.vibrate(15);
+  const n = C.nextDue(await (await import('./db.js')).db.get('plants', plant.id), kind);
+  toast(`${plant.__name || ''}の${kind === 'water' ? '水やり' : '施肥'}を記録${n.date ? '(次回 ' + n.date.slice(5).replace('-', '/') + ')' : ''}`, 5000, { label: '元に戻す', fn: async () => { await deleteLog(log); onDone && onDone(); } });
+  onDone && onDone();
+}
 
 export function careModal(plant, kind, onDone) {
   const isW = kind === 'water';

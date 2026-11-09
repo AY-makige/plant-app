@@ -44,11 +44,12 @@ export const PLANT_SPRITES = [
 ];
 export const spriteName = (id) => (PLANT_SPRITES.find((s) => s[0] === id) || [])[1] || '';
 
-export function toast(msg, ms = 2600) {
-  const t = h('div', { class: 'toast', role: 'status' }, msg);
+export function toast(msg, ms = 2600, action) {
+  const t = h('div', { class: 'toast', role: 'status' }, h('span', null, msg),
+    action ? h('button', { class: 'toast-act', type: 'button', onclick: async () => { t.remove(); await action.fn(); } }, action.label) : null);
   document.body.append(t);
   requestAnimationFrame(() => t.classList.add('show'));
-  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, ms);
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, action ? Math.max(ms, 5000) : ms);
 }
 
 export function modal(title, bodyFn, opts = {}) {
@@ -139,3 +140,26 @@ export function lifespanText(startInfo, endDate) {
 export function empty(icon, msg, action) {
   return h('div', { class: 'empty' }, sprite(icon, 'big'), h('p', null, msg), action || null);
 }
+
+/* ── アイコン(線画SVG・全画面で共通) ── */
+export const ICONS = {
+  home: '<path d="M3 11l9-8 9 8v10a1 1 0 01-1 1h-5v-7H9v7H4a1 1 0 01-1-1z"/>',
+  plants: '<path d="M12 21V11M12 11c0-4 3-7 8-7 0 5-3 8-8 7zM12 14c0-3-2-5-6-5 0 4 2 6 6 5z"/>',
+  calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  tasks: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/>',
+  soil: '<path d="M4 20h16M6 20c0-5 2-8 6-8s6 3 6 8M9 12c0-3 1-5 3-7 2 2 3 4 3 7"/>',
+  grave: '<path d="M6 21V9a6 6 0 0112 0v12"/><path d="M3 21h18"/><path d="M12 7.5v7M9.2 10h5.6"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>', check: '<path d="M5 12.5l4.5 4.5L19 7"/>', edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
+  drop: '<path d="M12 3c4 5 6 8 6 11a6 6 0 01-12 0c0-3 2-6 6-11z"/>',
+  flask: '<path d="M9 3h6M10 3v6l-5 9a2 2 0 002 3h10a2 2 0 002-3l-5-9V3M7.5 15h9"/>',
+  snow: '<path d="M12 2v20M4 7l16 10M20 7L4 17"/>', sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
+  bell: '<path d="M6 17v-6a6 6 0 0112 0v6l2 2H4zM10 21h4"/>', thermo: '<path d="M14 14.5V5a2 2 0 00-4 0v9.5a4 4 0 104 0z"/>',
+  back: '<path d="M15 5l-7 7 7 7"/>', trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>', chevron: '<path d="M9 5l7 7-7 7"/>',
+  pot: '<path d="M5 9h14l-2 11H7zM4 9h16M12 9V5M12 5c-3 0-4-2-4-3 3 0 4 1 4 3zM12 5c3 0 4-2 4-3-3 0-4 1-4 3z"/>',
+  warn: '<path d="M12 3l10 18H2zM12 10v5M12 18h.01"/>', undo: '<path d="M9 7L4 12l5 5M4 12h10a6 6 0 010 12"/>',
+};
+export function icon(name, size = 22, cls = '') {
+  return h('span', { class: 'ico ' + cls, html: `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>` });
+}
+export const graveImg = (cls = '') => h('img', { src: 'assets/grave.svg', alt: '洋風の墓石', class: 'grave-art ' + cls });

@@ -1,5 +1,5 @@
 // memorial.js — 枯死した植物の記録・メモリアル
-import { h, sprite, empty, field, modal, confirmBox, toast, photoInput, fmtDate, ownStart, lifespanText, C } from './ui.js';
+import { h, sprite, icon, graveImg, empty, field, modal, confirmBox, toast, photoInput, fmtDate, ownStart, lifespanText, C } from './ui.js';
 import { db } from './db.js';
 import { buryPlant, reviveGrave, loadCtx } from './data.js';
 
@@ -39,16 +39,16 @@ export function graveForm(plant, species, names, onDone) {
 }
 
 function gravePhoto(g, cls = '') {
-  return g.photo ? h('img', { class: 'avatar ' + cls + ' grave-img', src: g.photo, alt: g.name + 'の遺影' }) : h('div', { class: 'avatar sprite-av grave-img ' + cls }, sprite(g.sprite || 'i_leaf'));
+  return g.photo ? h('img', { class: 'avatar ' + cls + ' grave-img', src: g.photo, alt: g.name + 'の遺影' }) : h('div', { class: 'avatar grave-ph ' + cls }, graveImg());
 }
 const span = (g) => lifespanText(ownStart(g.plant), g.deathDate);
 
 export async function renderMemorial(root) {
   const graves = (await db.all('graves')).sort((a, b) => b.deathDate.localeCompare(a.deathDate));
-  root.append(h('div', { class: 'page-head' }, h('h1', null, 'メモリアル')), h('p', { class: 'muted' }, '枯れてしまった植物の記録です。「枯死として記録」は各植物の詳細画面から行えます。'));
-  if (!graves.length) { root.append(empty('i_heart', 'メモリアルはまだありません')); return; }
-  root.append(h('div', { class: 'cards' }, graves.map((g) => h('a', { class: 'card plant-card grave', href: `#/memorial/${g.id}` }, gravePhoto(g, 'cover'),
-    h('div', { class: 'pc-body' }, h('strong', null, g.name), h('small', { class: 'muted' }, `${fmtDate(g.deathDate)} 枯死`), h('small', null, '享年 ' + span(g)),
+  root.append(h('div', { class: 'memorial-head' }, graveImg('hdr'), h('div', null, h('h1', null, 'メモリアル'), h('p', { class: 'muted' }, '枯れてしまった植物の記録です。「枯死として記録」は各植物の詳細 → 情報タブから行えます。'))));
+  if (!graves.length) { root.append(h('div', { class: 'empty' }, graveImg('big'), h('p', null, 'メモリアルはまだありません'))); return; }
+  root.append(h('div', { class: 'pgrid' }, graves.map((g) => h('a', { class: 'pcard grave', href: `#/memorial/${g.id}` }, h('div', { class: 'pimg' }, gravePhoto(g, 'cover')),
+    h('div', { class: 'ptxt' }, h('strong', null, g.name), h('small', { class: 'muted' }, `${fmtDate(g.deathDate)} 枯死`), h('small', null, '享年 ' + span(g)),
       h('div', { class: 'row gap wrap' }, g.causes.map((c) => h('span', { class: 'badge ' + (c.certainty === '確定' ? 'st-care' : '') }, `${c.cause}${c.certainty === '推測' ? '?' : ''}`))))))));
 }
 

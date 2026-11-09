@@ -3,11 +3,21 @@ import { h, field, opt, toast, confirmBox, C } from './ui.js';
 import { db, getSettings, saveSettings } from './db.js';
 import { geocode } from './weather.js';
 import * as N from './notify.js';
+import { isStandalone, canPrompt, promptInstall, diagnose } from './pwa.js';
 
 export async function renderSettings(root) {
   const s = await getSettings();
   const rerender = () => { root.innerHTML = ''; renderSettings(root); };
   root.append(h('div', { class: 'page-head' }, h('h1', null, '設定')));
+
+  /* アプリのインストール */
+  const diag = h('div', { class: 'diag' });
+  const instBtn = canPrompt() ? h('button', { class: 'btn primary', onclick: async () => { const r = await promptInstall(); toast(r === 'accepted' ? 'インストールしました' : 'インストールはキャンセルされました'); rerender(); } }, 'ホーム画面にインストール') : null;
+  root.append(h('div', { class: 'card' }, h('h2', null, 'アプリとしてインストール'),
+    h('p', null, '状態: ', h('strong', null, isStandalone() ? 'アプリとして起動中' : canPrompt() ? 'インストールできます' : 'ブラウザで表示中')),
+    instBtn,
+    h('div', { class: 'note' }, h('b', null, 'Android(Chrome): '), '右上のメニュー(︙)→「アプリをインストール」または「ホーム画面に追加」。', h('br'), h('b', null, 'iPhone(Safari): '), '共有ボタン→「ホーム画面に追加」。', h('br'), '出ない場合は下の「診断」で原因を確認してください。'),
+    h('button', { class: 'btn small', onclick: async (e) => { const btn = e.currentTarget; btn.disabled = true; diag.innerHTML = ''; diag.append(h('p', { class: 'muted' }, '診断中…')); const r = await diagnose(); diag.innerHTML = ''; r.forEach((x) => diag.append(h('div', { class: 'diag-row ' + (x.ok ? 'ok' : 'ng') }, h('span', { class: 'mark' }, x.ok ? '✓' : '✗'), h('div', null, h('strong', null, x.label), x.detail ? h('div', { class: 'muted' }, x.detail) : null, !x.ok && x.hint ? h('div', { class: 'hintline' }, x.hint) : null)))); btn.disabled = false; } }, 'インストール診断を実行'), diag));
 
   /* 地域 */
   const q = h('input', { type: 'search', placeholder: '市区町村名(例: 世田谷区 / 札幌市 / 那覇市)', 'aria-label': '市区町村名' });

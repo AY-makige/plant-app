@@ -1,5 +1,5 @@
 // soil.js — 用土・配合管理(材料 / 配合レシピ / 植え替え履歴)
-import { h, sprite, empty, field, opt, modal, confirmBox, toast, photoInput, fmtDate, C } from './ui.js';
+import { h, sprite, icon, empty, field, opt, modal, confirmBox, toast, photoInput, fmtDate, C } from './ui.js';
 import { db, uid, MATERIAL_SPRITE } from './db.js';
 import { loadCtx } from './data.js';
 
@@ -107,7 +107,7 @@ export async function renderSoil(root) {
     if (!list.length) body.append(empty('terrarium', '植え替え記録はまだありません'));
     for (const r of list) {
       body.append(h('div', { class: 'card' }, h('div', { class: 'row between' }, h('div', null, h('strong', null, fmtDate(r.date)), ' ', h('a', { href: `#/plants/${r.plantId}` }, ctx.names[r.plantId] || '(削除済みの植物)')),
-        h('button', { class: 'icon-btn', 'aria-label': '削除', onclick: async () => { if (await confirmBox('この植え替え記録を削除しますか?', '削除', true)) { await db.del('repots', r.id); rerender(); } } }, '🗑')),
+        h('button', { class: 'icon-btn', 'aria-label': '削除', onclick: async () => { if (await confirmBox('この植え替え記録を削除しますか?', '削除', true)) { await db.del('repots', r.id); rerender(); } } }, icon('trash', 20))),
         r.recipeName ? h('div', null, '配合: ' + r.recipeName) : null, miniBar(mats, r.mix), h('small', { class: 'muted' }, mixText(r.mix)), r.potSize ? h('div', { class: 'muted' }, '鉢: ' + r.potSize) : null, r.note ? h('div', null, r.note) : null, r.photo ? h('img', { class: 'thumb', src: r.photo, alt: '植え替え時の写真' }) : null));
     }
   }

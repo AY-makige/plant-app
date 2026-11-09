@@ -63,9 +63,9 @@ export async function renderCalendar(root) {
     grid.append(h('button', { class: 'cal-cell' + (k === t0 ? ' today' : '') + (k === selDay ? ' sel' : '') + (wd === 0 ? ' sun' : wd === 6 ? ' sat' : ''), onclick: () => { state.day = k; rerender(); } },
       h('span', { class: 'dn' }, d),
       h('span', { class: 'dots' },
-        cnt('water', (e) => !e.done) ? h('span', { class: 'dot w' + (es.some((e) => e.kind === 'water' && e.over) ? ' over' : '') }, '💧' + cnt('water', (e) => !e.done)) : null,
-        cnt('fert', (e) => !e.done) ? h('span', { class: 'dot f' }, '🧪' + cnt('fert', (e) => !e.done)) : null,
-        es.some((e) => e.done) ? h('span', { class: 'dot ok' }, '✓' + es.filter((e) => e.done).length) : null)));
+        cnt('water', (e) => !e.done) ? h('span', { class: 'dot w' + (es.some((e) => e.kind === 'water' && e.over) ? ' over' : '') }, h('i'), cnt('water', (e) => !e.done)) : null,
+        cnt('fert', (e) => !e.done) ? h('span', { class: 'dot f' }, h('i'), cnt('fert', (e) => !e.done)) : null,
+        es.some((e) => e.done) ? h('span', { class: 'dot ok' }, h('i'), es.filter((e) => e.done).length) : null)));
   }
   const detail = h('div', { class: 'card' });
   if (selDay) {
@@ -83,5 +83,5 @@ export async function renderCalendar(root) {
     if (ps.length) { any = true; cyCard.append(h('div', { class: 'cy-line' }, h('span', { class: 'tag ' + cls }, label), ps.map((p) => h('a', { class: 'pill', href: `#/plants/${p.id}` }, ctx.names[p.id])))); }
   }
   if (!any) cyCard.append(h('p', { class: 'muted' }, 'この月に設定された成長サイクルはありません(植物の編集画面で月を設定できます)'));
-  root.append(nav, legend, grid, h('p', { class: 'muted' }, '💧水やり 🧪液体肥料 ✓実施済み。先の予定は「最終実施日+間隔」からの予測です。'), detail, cyCard);
+  root.append(nav, legend, grid, h('p', { class: 'muted' }, '青=水やり 橙=液体肥料 緑=実施済み。先の予定は「最終実施日+間隔」からの予測です。'), detail, cyCard);
 }
