@@ -15,9 +15,13 @@ export async function renderCalendar(root) {
   const spOf = (p) => ctx.sp[p.speciesId] || { cycle: {} };
 
   const tabs = h('div', { class: 'tabs' }, [['month', '月間'], ['year', '年間']].map(([k, l]) => h('button', { class: 'tab' + (state.view === k ? ' on' : ''), onclick: () => { state.view = k; rerender(); } }, l)));
-  const filter = h('div', { class: 'chips scroll', 'aria-label': '表示する植物' },
-    h('button', { class: 'chip-btn' + (!state.sel.size ? ' on' : ''), onclick: () => { state.sel.clear(); rerender(); } }, 'すべて'),
-    ctx.plants.map((p) => h('button', { class: 'chip-btn' + (state.sel.has(p.id) ? ' on' : ''), onclick: () => { state.sel.has(p.id) ? state.sel.delete(p.id) : state.sel.add(p.id); rerender(); } }, ctx.names[p.id])));
+  const opt = (checked, label, onchange) => h('label', { class: 'pf-opt' + (checked ? ' on' : '') }, h('input', { type: 'checkbox', checked, onchange }), h('span', null, label));
+  const summary = !state.sel.size ? 'すべて表示' : `${state.sel.size}件を表示`;
+  const filter = h('details', { class: 'plant-filter', open: !!state.fopen, ontoggle: (e) => { state.fopen = e.currentTarget.open; } },
+    h('summary', null, h('span', null, '表示する植物'), h('small', null, summary)),
+    h('div', { class: 'pf-list', role: 'group', 'aria-label': '表示する植物(複数選択可)' },
+      opt(!state.sel.size, 'すべて', () => { state.sel.clear(); rerender(); }),
+      ctx.plants.map((p) => opt(state.sel.has(p.id), ctx.names[p.id], () => { state.sel.has(p.id) ? state.sel.delete(p.id) : state.sel.add(p.id); rerender(); }))));
   root.append(h('div', { class: 'page-head' }, h('h1', null, 'カレンダー')), tabs, ctx.plants.length ? filter : null);
   if (!ctx.plants.length) { root.append(empty('i_calendar', '植物を登録すると成長サイクルが表示されます')); return; }
 
