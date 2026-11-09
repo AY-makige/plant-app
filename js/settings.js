@@ -1,5 +1,5 @@
 // settings.js — 地域・通知・バックアップ/復元
-import { h, field, opt, toast, confirmBox, C } from './ui.js';
+import { h, field, opt, toast, confirmBox, modal, C } from './ui.js';
 import { db, getSettings, saveSettings } from './db.js';
 import { geocode } from './weather.js';
 import * as N from './notify.js';
@@ -154,6 +154,15 @@ export async function renderSettings(root) {
       h('button', { class: 'btn', type: 'button', onclick: async () => { if (await confirmBox('アプリの一時データ(キャッシュ)を削除して最新を取り直します。植物・履歴・用土などのデータは消えません。実行しますか?', '削除して再読み込み')) clearCacheAndReload(); } }, '🧹 キャッシュを消して再読み込み')),
     upMsg,
     h('p', { class: 'muted' }, '表示が古い・画像が出ないときは、まず「更新を確認」、それでも直らなければキャッシュ削除をお試しください。')));
+
+  /* アプリのアイコン(拡大表示) */
+  root.append(h('div', { class: 'card' }, h('h2', null, 'アプリのアイコン'),
+    h('div', { class: 'row gap', style: { alignItems: 'center' } },
+      h('button', { type: 'button', class: 'icon-thumb', 'aria-label': 'アイコンを大きく表示', onclick: () => modal('アプリのアイコン', (b, close) => {
+        b.append(h('img', { src: 'icons/icon-large.jpg', alt: 'アプリのアイコン(拡大)', class: 'icon-large' }),
+          h('div', { class: 'btn-row' }, h('a', { class: 'btn', href: 'icons/icon-large.jpg', download: 'plant-app-icon.jpg' }, '画像を保存'), h('button', { class: 'btn primary', type: 'button', onclick: close }, '閉じる')));
+      }) }, h('img', { src: 'icons/icon-192.png', alt: '' })),
+      h('p', { class: 'muted', style: { margin: 0 } }, 'タップすると大きい画像で見られます。'))));
 
   root.append(h('div', { class: 'card' }, h('h2', null, 'このアプリについて'), h('p', { class: 'muted' }, 'データはこの端末のブラウザ内(IndexedDB)に保存されます。別の端末とは自動同期されません。端末を変える場合はバックアップ→復元を使ってください。')));
 }
