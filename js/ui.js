@@ -149,7 +149,7 @@ export const ICONS = {
   tasks: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/>',
   soil: '<path d="M4 20h16M6 20c0-5 2-8 6-8s6 3 6 8M9 12c0-3 1-5 3-7 2 2 3 4 3 7"/>',
   grave: '<path d="M6 21V9a6 6 0 0112 0v12"/><path d="M3 21h18"/><path d="M12 7.5v7M9.2 10h5.6"/>',
-  settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
+  settings: '<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
   plus: '<path d="M12 5v14M5 12h14"/>', check: '<path d="M5 12.5l4.5 4.5L19 7"/>', edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
   drop: '<path d="M12 3c4 5 6 8 6 11a6 6 0 01-12 0c0-3 2-6 6-11z"/>',
   flask: '<path d="M9 3h6M10 3v6l-5 9a2 2 0 002 3h10a2 2 0 002-3l-5-9V3M7.5 15h9"/>',
@@ -157,6 +157,7 @@ export const ICONS = {
   bell: '<path d="M6 17v-6a6 6 0 0112 0v6l2 2H4zM10 21h4"/>', thermo: '<path d="M14 14.5V5a2 2 0 00-4 0v9.5a4 4 0 104 0z"/>',
   back: '<path d="M15 5l-7 7 7 7"/>', trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>', chevron: '<path d="M9 5l7 7-7 7"/>',
   pot: '<path d="M5 9h14l-2 11H7zM4 9h16M12 9V5M12 5c-3 0-4-2-4-3 3 0 4 1 4 3zM12 5c3 0 4-2 4-3-3 0-4 1-4 3z"/>',
+  moon: '<path d="M20 14.5A8.5 8.5 0 019.5 4a8.5 8.5 0 1010.5 10.5z"/>', search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>', sparkle: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/>', swap: '<path d="M4 8h13l-3-3M20 16H7l3 3"/>', link: '<path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1"/>',
   warn: '<path d="M12 3l10 18H2zM12 10v5M12 18h.01"/>', undo: '<path d="M9 7L4 12l5 5M4 12h10a6 6 0 010 12"/>',
 };
 export function icon(name, size = 22, cls = '') {

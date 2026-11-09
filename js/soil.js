@@ -77,6 +77,20 @@ export async function repotModal(plant, preset, onDone) {
 const mixText = (mix) => (mix || []).map((m) => `${m.material} ${m.pct}%`).join(' / ');
 const miniBar = (mats, mix) => h('div', { class: 'mixbar small' }, (mix || []).map((r) => h('span', { style: { width: r.pct + '%', background: colorOf(mats, r.material) }, title: `${r.material} ${r.pct}%` })));
 
+/** 植物詳細に表示する「使用している用土」カード(最新の植え替え記録を表示) */
+export function soilCard(plant, repots, mats, onChange) {
+  const last = [...repots].sort((a, b) => b.date.localeCompare(a.date) || (b.ts || 0) - (a.ts || 0)).find((r) => (r.mix || []).length) || [...repots][0];
+  const card = h('div', { class: 'card soil-card' }, h('div', { class: 'row between' }, h('h2', null, '使用している用土'), h('a', { class: 'link-s', href: '#/soil' }, '配合レシピの管理')));
+  if (!last || !(last.mix || []).length) card.append(h('p', { class: 'muted' }, last ? '植え替えは記録済みですが、用土の配合が未入力です。' : 'まだ用土が記録されていません。'));
+  else card.append(h('div', { class: 'soil-now' },
+    h('div', { class: 'soil-sprites' }, last.mix.slice(0, 5).map((m) => (MATERIAL_SPRITE[m.material] ? sprite(MATERIAL_SPRITE[m.material], 'soil-sp') : null))),
+    last.recipeName ? h('strong', null, last.recipeName) : h('strong', null, '手動配合'),
+    miniBar(mats, last.mix), h('div', { class: 'mix-legend' }, last.mix.map((m) => h('span', null, h('i', { style: { background: colorOf(mats, m.material) } }), `${m.material} ${m.pct}%`))),
+    h('small', { class: 'muted' }, `植え替え日 ${fmtDate(last.date)}${last.potSize ? ' ・ 鉢: ' + last.potSize : ''}`)));
+  card.append(h('div', { class: 'btn-row left' }, h('button', { class: 'btn small', type: 'button', onclick: () => repotModal(plant, last && last.mix ? last.mix : null, onChange) }, h('span', null, last ? '用土を変更・植え替えを記録' : '用土を記録'))));
+  return card;
+}
+
 export async function renderSoil(root) {
   const tab = sessionStorage.getItem('soilTab') || 'recipes';
   const [mats, recipes, repots, ctx] = await Promise.all([db.all('materials'), db.all('recipes'), db.all('repots'), loadCtx()]);
@@ -111,5 +125,5 @@ export async function renderSoil(root) {
         r.recipeName ? h('div', null, '配合: ' + r.recipeName) : null, miniBar(mats, r.mix), h('small', { class: 'muted' }, mixText(r.mix)), r.potSize ? h('div', { class: 'muted' }, '鉢: ' + r.potSize) : null, r.note ? h('div', null, r.note) : null, r.photo ? h('img', { class: 'thumb', src: r.photo, alt: '植え替え時の写真' }) : null));
     }
   }
-  root.append(h('div', { class: 'page-head' }, h('h1', null, '用土管理')), tabs, body);
+  root.append(h('div', { class: 'page-head' }, h('h1', null, '用土・配合'), h('a', { class: 'btn small ghost', href: '#/settings' }, '設定へ戻る')), tabs, body);
 }

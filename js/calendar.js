@@ -5,7 +5,7 @@ import { loadCtx } from './data.js';
 import { CYCLE } from './plants.js';
 
 const state = { view: 'month', y: new Date().getFullYear(), m: new Date().getMonth() + 1, sel: new Set(), day: null };
-const CY_ICON = { bloom: '✿', repot: '鉢', divide: '分', sow: '種' };
+const CY_ICON = { bloom: '✿', repot: '鉢' };
 
 export async function renderCalendar(root) {
   const ctx = await loadCtx();
@@ -21,13 +21,13 @@ export async function renderCalendar(root) {
   root.append(h('div', { class: 'page-head' }, h('h1', null, 'カレンダー')), tabs, ctx.plants.length ? filter : null);
   if (!ctx.plants.length) { root.append(empty('i_calendar', '植物を登録すると成長サイクルが表示されます')); return; }
 
-  const legend = h('div', { class: 'legend' }, h('span', null, h('i', { class: 'lg growth' }), '成長期'), h('span', null, h('i', { class: 'lg dormant' }), '休眠期'), h('span', null, '✿ 開花'), h('span', null, '鉢 植え替え'), h('span', null, '分 株分け'), h('span', null, '種 種まき'));
+  const legend = h('div', { class: 'legend' }, h('span', null, h('i', { class: 'lg growth' }), '成長期'), h('span', null, h('i', { class: 'lg dormant' }), '休眠期'), h('span', null, '✿ 開花'), h('span', null, '鉢 植え替え'));
 
   if (state.view === 'year') {
     const tbl = h('table', { class: 'year' }, h('thead', null, h('tr', null, h('th', null, '植物'), MONTHS.map((m, i) => h('th', { class: i + 1 === new Date().getMonth() + 1 ? 'now' : '' }, m)))),
       h('tbody', null, plants.map((p) => { const c = spOf(p).cycle || {}; return h('tr', null, h('th', null, h('a', { href: `#/plants/${p.id}` }, ctx.names[p.id])),
         MONTHS.map((_, i) => { const mo = i + 1; const g = (c.growth || []).includes(mo), d = (c.dormant || []).includes(mo);
-          const marks = ['bloom', 'repot', 'divide', 'sow'].filter((k) => (c[k] || []).includes(mo)).map((k) => h('span', { class: 'mk ' + k, title: CYCLE.find((x) => x[0] === k)[1] }, CY_ICON[k]));
+          const marks = ['bloom', 'repot'].filter((k) => (c[k] || []).includes(mo)).map((k) => h('span', { class: 'mk ' + k, title: CYCLE.find((x) => x[0] === k)[1] }, CY_ICON[k]));
           return h('td', { class: (g ? 'growth ' : '') + (d ? 'dormant' : '') }, marks); })); })));
     root.append(legend, h('div', { class: 'table-wrap' }, tbl), h('p', { class: 'muted' }, '成長サイクルは植物の登録・編集画面で設定します(種類ごとに共通)。'));
     return;

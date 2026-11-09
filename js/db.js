@@ -33,6 +33,8 @@ export const db = {
   async exportAll() {
     const data = { app: 'plant-keeper', version: 1, exportedAt: new Date().toISOString(), stores: {} };
     for (const s of STORES) data.stores[s] = await db.all(s);
+    // APIキーはバックアップに含めない(共有時の漏えい防止)
+    data.stores.kv = data.stores.kv.map((r) => (r.key === 'settings' && r.value && r.value.gemini ? { ...r, value: { ...r.value, gemini: { ...r.value.gemini, key: '' } } } : r));
     return data;
   },
   async importAll(data, mode = 'replace') {

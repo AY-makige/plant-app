@@ -31,8 +31,16 @@ export async function renderTasks(root) {
   const ctx = await loadCtx();
   const rerender = () => { const y = window.scrollY; root.innerHTML = ''; renderTasks(root).then(() => window.scrollTo(0, y)); };
   const tasks = C.buildTasks(ctx.plants, ctx.names);
-  const seg = h('div', { class: 'seg', role: 'tablist' }, [['water', '水やり'], ['fert', '液体肥料'], ['history', '履歴']].map(([k, l]) =>
-    h('button', { class: 'seg-b' + (tab === k ? ' on' : ''), role: 'tab', 'aria-selected': tab === k, onclick: () => { sessionStorage.setItem('taskTab', k); rerender(); } }, l)));
+  const go = (k) => { sessionStorage.setItem('taskTab', k); rerender(); };
+  const other = tab === 'fert' ? 'water' : 'fert';
+  const title = { water: '水やり', fert: '液体肥料', history: '実施履歴' }[tab];
+  const head = h('div', { class: 'page-head task-head' },
+    h('h1', { class: 'kind-h ' + (tab === 'history' ? '' : tab) }, tab === 'history' ? null : icon(tab === 'fert' ? 'flask' : 'drop', 30), title),
+    h('div', { class: 'row gap' },
+      tab === 'history'
+        ? [h('button', { class: 'btn small switch water', onclick: () => go('water') }, icon('drop', 18), '水やり'), h('button', { class: 'btn small switch fert', onclick: () => go('fert') }, icon('flask', 18), '液体肥料')]
+        : [h('button', { class: 'btn small switch ' + other, type: 'button', onclick: () => go(other), 'aria-label': `${other === 'fert' ? '液体肥料' : '水やり'}に切り替え` }, icon('swap', 18), other === 'fert' ? '液体肥料へ' : '水やりへ'),
+          h('button', { class: 'btn small ghost', type: 'button', onclick: () => go('history') }, '履歴')]));
   const body = h('div');
   if (tab === 'history') {
     const logs = (await db.all('logs')).sort((a, b) => b.date.localeCompare(a.date) || b.ts - a.ts);
@@ -52,5 +60,5 @@ export async function renderTasks(root) {
     body.append(grouped(ctx, list, rerender));
     if (stopped.length) body.append(h('div', { class: 'card' }, h('h3', null, '予定なし(未設定・休眠期停止)'), h('p', { class: 'muted' }, stopped.map((p) => `${ctx.names[p.id]}${C.isDormant(p) ? '(休眠中)' : ''}`).join('、'))));
   }
-  root.append(h('div', { class: 'page-head' }, h('h1', null, '管理タスク')), seg, body);
+  root.append(head, body);
 }

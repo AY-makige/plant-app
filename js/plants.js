@@ -1,12 +1,13 @@
-// plants.js — 植物図鑑(一覧・詳細・登録/編集)
+// plants.js — ライブラリー(一覧・詳細・登録/編集)
 import { h, sprite, icon, empty, field, opt, monthChips, modal, confirmBox, toast, photoInput, fmtDate, relDays, ownStart, lifespanText, PLANT_SPRITES, spriteName, MONTHS, C } from './ui.js';
 import { db, uid } from './db.js';
 import { loadCtx, deleteLog, deletePlant } from './data.js';
+import { googleUrl, openAiSearch, imageUrl, RESEARCH_ITEMS, FIELDS, speciesQuery, openTab, geminiConfig, geminiLookup, toFormValues } from './search.js';
 import { careModal } from './care.js';
-import { repotModal } from './soil.js';
+import { repotModal, soilCard } from './soil.js';
 import { graveForm } from './memorial.js';
 
-export const CYCLE = [['growth', '成長期', 'growth'], ['dormant', '休眠期', 'dormant'], ['bloom', '開花予定', 'bloom'], ['repot', '植え替え推奨', 'repot'], ['divide', '株分け推奨', 'divide'], ['sow', '種まき推奨', 'sow']];
+export const CYCLE = [['growth', '成長期', 'growth'], ['dormant', '休眠期', 'dormant'], ['bloom', '開花予定', 'bloom'], ['repot', '植え替え推奨', 'repot']];
 export const STATUSES = ['成長中', '休眠中', '療養中', 'その他'];
 
 export function avatar(p, cls = '') {
@@ -22,13 +23,18 @@ export async function renderList(root) {
   const q = h('input', { type: 'search', placeholder: '名前・学名・産地で検索', 'aria-label': '検索' });
   const chipRow = h('div', { class: 'chips scroll', 'aria-label': '絞り込み' });
   const grid = h('div', { class: 'pgrid' });
+  const ext = h('div', { class: 'ext-search' });
+  const drawExt = () => {
+    ext.innerHTML = ''; const kw = q.value.trim(); if (!kw) return;
+    ext.append(h('span', { class: 'muted' }, `「${kw}」をネットで調べる`), h('button', { class: 'btn small', type: 'button', onclick: () => openTab(googleUrl(speciesQuery(kw))) }, icon('search', 16), 'Google検索'), h('button', { class: 'btn small', type: 'button', onclick: () => openAiSearch(kw, toast) }, icon('sparkle', 16), 'AIモード'), h('a', { class: 'btn small primary', href: `#/plants/new?name=${encodeURIComponent(kw)}` }, icon('plus', 16), 'この名前で登録'));
+  };
   const drawChips = () => {
     chipRow.innerHTML = '';
     const mk = (key, val, label) => h('button', { class: 'chip-btn' + (f[key] === val ? ' on' : ''), type: 'button', onclick: () => { f[key] = f[key] === val && val !== '' ? '' : val; drawChips(); draw(); } }, label);
     chipRow.append(mk('st', '', 'すべて'), STATUSES.map((s) => mk('st', s, s)), h('span', { class: 'sep' }), mk('loc', 'outdoor', '屋外'), mk('loc', 'indoor', '室内'));
   };
   const draw = () => {
-    grid.innerHTML = '';
+    grid.innerHTML = ''; drawExt();
     const kw = q.value.trim().toLowerCase();
     const list = ctx.plants.filter((p) => {
       const s = ctx.sp[p.speciesId] || {};
@@ -47,8 +53,8 @@ export async function renderList(root) {
     }
   };
   q.addEventListener('input', draw);
-  root.append(h('div', { class: 'page-head' }, h('h1', null, '植物図鑑'), h('span', { class: 'count' }, `${ctx.plants.length}株 / ${ctx.species.length}種`)),
-    h('div', { class: 'searchbar' }, q), chipRow, grid,
+  root.append(h('div', { class: 'page-head' }, h('h1', null, 'ライブラリー'), h('span', { class: 'count' }, `${ctx.plants.length}株 / ${ctx.species.length}種`)),
+    h('div', { class: 'searchbar' }, q), ext, chipRow, grid,
     h('a', { class: 'fab', href: '#/plants/new', 'aria-label': '植物を新規登録' }, icon('plus', 28)));
   drawChips(); draw();
 }
@@ -58,10 +64,10 @@ let detailTab = 'care';
 export async function renderDetail(root, id) {
   const ctx = await loadCtx();
   const p = ctx.plants.find((x) => x.id === id);
-  if (!p) { root.append(empty('i_warn', '植物が見つかりません', h('a', { class: 'btn', href: '#/plants' }, '図鑑へ戻る'))); return; }
+  if (!p) { root.append(empty('i_warn', '植物が見つかりません', h('a', { class: 'btn', href: '#/plants' }, 'ライブラリーへ戻る'))); return; }
   const s = ctx.sp[p.speciesId] || {};
   const reload = () => { const y = window.scrollY; root.innerHTML = ''; renderDetail(root, id).then(() => window.scrollTo(0, y)); };
-  const [logs, repots, fc] = await Promise.all([db.byPlant('logs', id), db.byPlant('repots', id), db.kvGet('forecast', null)]);
+  const [logs, repots, fc, mats] = await Promise.all([db.byPlant('logs', id), db.byPlant('repots', id), db.kvGet('forecast', null), db.all('materials')]);
   logs.sort((a, b) => b.date.localeCompare(a.date) || b.ts - a.ts); repots.sort((a, b) => b.date.localeCompare(a.date));
   const warns = fc ? C.computeWarnings([p], ctx.names, fc.data.daily, 3) : [];
   const dorm = C.isDormant(p); const start = ownStart(p);
@@ -86,6 +92,7 @@ export async function renderDetail(root, id) {
     if (detailTab === 'care') panel.append(
       warns.length ? h('div', { class: 'alerts' }, warns.map((w) => h('div', { class: 'warn ' + w.level }, h('strong', null, w.label), ' ', w.msg))) : null,
       h('div', { class: 'grid-auto' }, sched('water'), sched('fert')),
+      soilCard(p, repots, mats, reload),
       h('div', { class: 'card' }, h('h2', null, '成長サイクル(種類共通)'), cycleBars(s)));
     else if (detailTab === 'info') panel.append(
       h('div', { class: 'card' }, h('h2', null, '基本情報'), h('dl', null,
@@ -114,7 +121,7 @@ export async function renderDetail(root, id) {
 
   root.append(
     h('div', { class: 'd-hero' }, avatar(p, 'dh'),
-      h('a', { class: 'fl-btn left', href: '#/plants', 'aria-label': '図鑑へ戻る' }, icon('back', 22)),
+      h('a', { class: 'fl-btn left', href: '#/plants', 'aria-label': 'ライブラリーへ戻る' }, icon('back', 22)),
       h('a', { class: 'fl-btn right', href: `#/plants/${id}/edit`, 'aria-label': '編集' }, icon('edit', 20))),
     h('div', { class: 'd-sheet' },
       h('h1', null, ctx.names[p.id]), h('div', { class: 'd-sub' }, s.commonName && s.commonName !== ctx.names[p.id] ? s.commonName + ' ・ ' : '', h('i', null, s.sciName || '')),
@@ -134,12 +141,13 @@ export function cycleBars(s) {
 }
 
 /* ───────── 登録・編集フォーム ───────── */
-export async function renderForm(root, id) {
+export async function renderForm(root, id, params) {
   const ctx = await loadCtx();
   const editing = id ? ctx.plants.find((x) => x.id === id) : null;
   if (id && !editing) { root.append(empty('i_warn', '植物が見つかりません')); return; }
   const p = editing || { status: '成長中', location: 'outdoor', water: { last: C.today() }, fert: { stopInDormant: true, last: '' } };
-  let sp = ctx.sp[p.speciesId] || { cycle: {} };
+  let sp = ctx.sp[p.speciesId] || { cycle: {}, commonName: (!editing && params && params.get('name')) || '' };
+  const gcfg = await geminiConfig();
   const photo = photoInput(p.photo);
   let spriteSel = p.sprite || '';
 
@@ -169,10 +177,37 @@ export async function renderForm(root, id) {
     if (d && !editing) { const set = (n, val) => { const el = form.elements[n]; if (el && val != null) el.value = val; }; ['outdoorMin', 'indoorTemp', 'highTemp'].forEach((k) => set(k, (d.temps || {})[k])); set('w_interval', (d.water || {}).interval); set('w_amount', (d.water || {}).amount); set('w_dormantInterval', (d.water || {}).dormantInterval); set('w_dormantAmount', (d.water || {}).dormantAmount); set('f_interval', (d.fert || {}).interval); set('f_type', (d.fert || {}).type); set('f_dilution', (d.fert || {}).dilution); set('f_amount', (d.fert || {}).amount); toast('この種類の前回設定を引き継ぎました'); }
   });
 
+
+  /* ネット検索 / AI自動入力 */
+  const aiOut = h('div', { class: 'ai-out' });
+  const nameNow = () => ((form.elements.commonName && form.elements.commonName.value) || (form.elements.nickname && form.elements.nickname.value) || '').trim();
+  const needName = () => { const n = nameNow(); if (!n) toast('先に流通名(植物の名前)を入力してください'); return n; };
+  const fillFromAI = (r) => {
+    const v = toFormValues(r.data); const done = [];
+    const setv = (n, val, force) => { const el = form.elements[n]; if (!el || val == null) return; if (!force && el.value !== '') return; el.value = val; el.classList.add('ai-filled'); done.push(n); };
+    FIELDS.forEach((k) => setv(k, v.fields[k], true));
+    Object.entries(v.cycle).forEach(([k, arr]) => { if (!arr) return; form.querySelectorAll(`[name=cycle_${k}]`).forEach((c) => { c.checked = arr.includes(Number(c.value)); }); done.push('cycle_' + k); });
+    aiOut.innerHTML = '';
+    aiOut.append(h('div', { class: 'warn caution' }, h('strong', null, 'AIの入力結果'), ` ${done.length}項目を反映しました(色付きの欄)。AIの回答は誤りを含むことがあります。必ず内容を確認・修正してから登録してください。`),
+      r.sources.length ? h('div', { class: 'srcs' }, h('b', null, '参照元(Google検索)'), r.sources.map((s) => h('a', { href: s.uri, target: '_blank', rel: 'noopener noreferrer' }, s.title || s.uri))) : h('small', { class: 'muted' }, '参照元の情報は取得できませんでした。'));
+  };
+  const aiBtn = gcfg.key
+    ? h('button', { class: 'btn small primary', type: 'button', onclick: async (e) => {
+      const n = needName(); if (!n) return; const b = e.currentTarget; b.disabled = true; const old = b.textContent; b.textContent = 'AIが調べています…'; aiOut.innerHTML = '';
+      try { fillFromAI(await geminiLookup(n)); } catch (err) { aiOut.append(h('div', { class: 'warn urgent' }, err.message)); } finally { b.disabled = false; b.textContent = old; }
+    } }, icon('sparkle', 16), 'AIで自動入力(Gemini)')
+    : h('a', { class: 'btn small ghost', href: '#/settings' }, icon('sparkle', 16), 'AI自動入力を設定する');
+  const lookup = h('div', { class: 'lookup' }, h('strong', null, 'ネットで調べる'),
+    h('p', { class: 'muted' }, '植物名を入力して、次の項目を調べられます。'),
+    h('div', { class: 'chips research' }, RESEARCH_ITEMS.map((x) => h('span', { class: 'chip-s' }, x))),
+    h('div', { class: 'row gap wrap' },
+      h('button', { class: 'btn small', type: 'button', onclick: () => { const n = needName(); if (n) openTab(googleUrl(speciesQuery(n))); } }, icon('search', 16), 'Google検索'),
+      h('button', { class: 'btn small', type: 'button', onclick: () => { const n = needName(); if (n) openAiSearch(n, toast); } }, icon('sparkle', 16), 'Google AIモード'),
+      h('button', { class: 'btn small', type: 'button', onclick: () => { const n = needName(); if (n) openTab(imageUrl(n + ' 植物')); } }, '画像を探す'), aiBtn), aiOut);
   const w = p.water || {}, f = p.fert || {};
   const sec = (title, open, ...kids) => h('details', { class: 'card sec', open }, h('summary', null, title), h('div', { class: 'sec-body' }, kids));
   form.append(
-    sec('① 種類・植物情報', true, field('登録済みの種類から選ぶ', spSelect, '同じ種類を複数持っている場合は、ここで既存の種類を選ぶと別個体として登録できます'), spWrap),
+    sec('① 種類・植物情報', true, lookup, field('登録済みの種類から選ぶ', spSelect, '同じ種類を複数持っている場合は、ここで既存の種類を選ぶと別個体として登録できます'), spWrap),
     sec('② 個体情報', true,
       field('個体の呼び名(任意)', v('nickname', p.nickname, 'text', { placeholder: '例: 玄関の子 / ①' }), '未入力なら流通名が表示されます'),
       field('写真', photo.el), h('p', { class: 'muted' }, '写真が無い場合は、下のイラストを代わりに使えます'), spriteGrid,

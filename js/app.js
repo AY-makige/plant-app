@@ -9,19 +9,20 @@ import { renderSoil } from './soil.js';
 import { renderMemorial, renderGrave } from './memorial.js';
 import { renderSettings } from './settings.js';
 import * as N from './notify.js';
+import { applyTheme, toggleMode, resolvedMode } from './theme.js';
 
-const NAV = [['home', 'ホーム', 'home'], ['plants', '植物図鑑', 'plants'], ['calendar', 'カレンダー', 'calendar'], ['tasks', 'タスク', 'tasks'], ['soil', '用土', 'soil'], ['memorial', 'メモリアル', 'grave']];
-const TITLES = Object.fromEntries([...NAV.map(([k, l]) => [k, l]), ['settings', '設定']]);
+const NAV = [['home', 'ホーム', 'home'], ['plants', 'ライブラリー', 'plants'], ['tasks', '水やり', 'drop'], ['calendar', 'カレンダー', 'calendar'], ['memorial', 'メモリアル', 'grave']];
+const TITLES = Object.fromEntries([...NAV.map(([k, l]) => [k, l]), ['settings', '設定'], ['soil', '用土・配合']]);
 
 const routes = [
   [/^#\/home$/, 'home', (r) => renderHome(r)],
   [/^#\/plants$/, 'plants', (r) => renderList(r)],
-  [/^#\/plants\/new$/, 'plants', (r) => renderForm(r, null)],
+  [/^#\/plants\/new(?:\?(.*))?$/, 'plants', (r, m) => renderForm(r, null, new URLSearchParams(m[1] || ''))],
   [/^#\/plants\/([^/]+)\/edit$/, 'plants', (r, m) => renderForm(r, m[1])],
   [/^#\/plants\/([^/]+)$/, 'plants', (r, m) => renderDetail(r, m[1])],
   [/^#\/calendar$/, 'calendar', (r) => renderCalendar(r)],
   [/^#\/tasks$/, 'tasks', (r) => renderTasks(r)],
-  [/^#\/soil$/, 'soil', (r) => renderSoil(r)],
+  [/^#\/soil$/, 'settings', (r) => renderSoil(r)],
   [/^#\/memorial$/, 'memorial', (r) => renderMemorial(r)],
   [/^#\/memorial\/([^/]+)$/, 'memorial', (r, m) => renderGrave(r, m[1])],
   [/^#\/settings$/, 'settings', (r) => renderSettings(r)],
@@ -39,17 +40,27 @@ async function route() {
     if (my !== token) return;
     main.replaceChildren(tmp); window.scrollTo(0, 0);
     document.querySelectorAll('[data-nav]').forEach((a) => a.classList.toggle('on', a.dataset.nav === nav));
-    document.body.dataset.route = nav; document.getElementById('top-title').textContent = TITLES[nav] || '植物管理'; main.classList.remove('enter'); void main.offsetWidth; main.classList.add('enter');
+    document.body.dataset.route = nav; document.getElementById('top-title').textContent = hash === '#/soil' ? TITLES.soil : TITLES[nav] || '植物管理'; main.classList.remove('enter'); void main.offsetWidth; main.classList.add('enter');
     return;
   }
   location.hash = '#/home';
 }
 
+function themeButtons() {
+  const draw = () => document.querySelectorAll('.theme-toggle').forEach((b) => { b.replaceChildren(icon(resolvedMode() === 'dark' ? 'sun' : 'moon', 22), ...(b.classList.contains('nav-item') ? [h('span', null, resolvedMode() === 'dark' ? 'ライトモード' : 'ダークモード')] : [])); b.title = resolvedMode() === 'dark' ? 'ライトモードにする' : 'ダークモードにする'; b.setAttribute('aria-label', b.title); });
+  document.querySelectorAll('.theme-toggle').forEach((b) => b.addEventListener('click', toggleMode));
+  window.addEventListener('theme-change', draw); draw();
+}
+
 async function init() {
+  applyTheme();
   await ensureDefaults();
   const items = NAV.map(([k, l, ic]) => h('a', { href: `#/${k}`, 'data-nav': k, class: 'nav-item' }, icon(ic, 24), h('span', null, l)));
   document.getElementById('nav').append(...items);
   document.getElementById('side-extra').append(h('a', { href: '#/settings', 'data-nav': 'settings', class: 'nav-item' }, icon('settings', 24), h('span', null, '設定')));
+  document.getElementById('top-theme').classList.add('theme-toggle');
+  document.getElementById('side-extra').append(h('button', { class: 'nav-item theme-toggle', type: 'button' }));
+  themeButtons();
   const ts = document.getElementById('top-settings'); ts.href = '#/settings'; ts.append(icon('settings', 24));
   window.addEventListener('hashchange', route);
   window.addEventListener('install-ready', () => { if (['home', 'settings'].includes(document.body.dataset.route)) route(); });

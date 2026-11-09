@@ -3,12 +3,23 @@ import { h, field, opt, toast, confirmBox, C } from './ui.js';
 import { db, getSettings, saveSettings } from './db.js';
 import { geocode } from './weather.js';
 import * as N from './notify.js';
+import { getTheme, setMode, setStyle } from './theme.js';
+import { DEFAULT_MODEL, geminiLookup, AI_PRESETS, getAiConfig, setAiConfig, openAiSearch, buildAiUrl } from './search.js';
 import { isStandalone, canPrompt, promptInstall, diagnose } from './pwa.js';
 
 export async function renderSettings(root) {
   const s = await getSettings();
   const rerender = () => { root.innerHTML = ''; renderSettings(root); };
   root.append(h('div', { class: 'page-head' }, h('h1', null, '設定')));
+
+  /* 表示(モード・雰囲気) */
+  const th = getTheme();
+  const segOf = (opts, cur, fn) => h('div', { class: 'seg' }, opts.map(([k, l]) => h('button', { class: 'seg-b' + (cur === k ? ' on' : ''), type: 'button', onclick: (e) => { fn(k); [...e.currentTarget.parentNode.children].forEach((c) => c.classList.remove('on')); e.currentTarget.classList.add('on'); } }, l)));
+  root.append(h('div', { class: 'card' }, h('h2', null, '表示'),
+    h('div', { class: 'field' }, h('span', { class: 'lbl' }, 'モード'), segOf([['auto', '自動'], ['light', 'ライト'], ['dark', 'ダーク']], th.mode, setMode), h('small', { class: 'muted' }, '「自動」は端末の設定(ライト/ダーク)に合わせます。画面上部の月・太陽ボタンでも切り替えられます。')),
+    h('div', { class: 'field' }, h('span', { class: 'lbl' }, '雰囲気'), segOf([['standard', 'スタンダード'], ['botanical', 'ボタニカル']], th.style, setStyle),
+      h('small', { class: 'muted' }, 'ボタニカル: 生成りの紙と葉のモチーフ、明朝系の見出しで、ナチュラルな雰囲気になります。')),
+    h('div', { class: 'theme-previews' }, h('div', { class: 'tp std' }, h('b', null, 'スタンダード'), h('i'), h('i')), h('div', { class: 'tp bot' }, h('b', null, 'ボタニカル'), h('i'), h('i')))));
 
   /* アプリのインストール */
   const diag = h('div', { class: 'diag' });
@@ -18,6 +29,35 @@ export async function renderSettings(root) {
     instBtn,
     h('div', { class: 'note' }, h('b', null, 'Android(Chrome): '), '右上のメニュー(︙)→「アプリをインストール」または「ホーム画面に追加」。', h('br'), h('b', null, 'iPhone(Safari): '), '共有ボタン→「ホーム画面に追加」。', h('br'), '出ない場合は下の「診断」で原因を確認してください。'),
     h('button', { class: 'btn small', onclick: async (e) => { const btn = e.currentTarget; btn.disabled = true; diag.innerHTML = ''; diag.append(h('p', { class: 'muted' }, '診断中…')); const r = await diagnose(); diag.innerHTML = ''; r.forEach((x) => diag.append(h('div', { class: 'diag-row ' + (x.ok ? 'ok' : 'ng') }, h('span', { class: 'mark' }, x.ok ? '✓' : '✗'), h('div', null, h('strong', null, x.label), x.detail ? h('div', { class: 'muted' }, x.detail) : null, !x.ok && x.hint ? h('div', { class: 'hintline' }, x.hint) : null)))); btn.disabled = false; } }, 'インストール診断を実行'), diag));
+
+  /* AI検索(Google AIモード等)の開き方 */
+  const ac = getAiConfig();
+  const aiSel = h('select', { 'aria-label': 'AI検索の開き方' }, Object.entries(AI_PRESETS).map(([k, v]) => h('option', { value: k, selected: ac.mode === k }, v.label)));
+  const aiCustom = h('input', { type: 'text', value: ac.custom, placeholder: 'https://… {q} …(検索語が入る位置に {q})', 'aria-label': 'カスタムURL' });
+  const aiCopy = h('input', { type: 'checkbox', checked: ac.copy });
+  const aiPrev = h('small', { class: 'muted break' });
+  const customWrap = h('div', { class: ac.mode === 'custom' ? '' : 'hidden' }, field('カスタムURL(https のみ)', aiCustom));
+  const aiSave = () => { setAiConfig({ mode: aiSel.value, custom: aiCustom.value, copy: aiCopy.checked }); customWrap.classList.toggle('hidden', aiSel.value !== 'custom'); aiPrev.textContent = '開くURL: ' + buildAiUrl('サンプル'); };
+  [aiSel, aiCustom, aiCopy].forEach((e) => e.addEventListener('change', aiSave));
+  root.append(h('div', { class: 'card' }, h('h2', null, 'AI検索(Google AIモード等)の開き方'),
+    h('p', { class: 'muted' }, 'GoogleのAIモードは、検索語つきで開く公式URLが保証されていません。使えなくなった場合は、ここで別の方法に切り替えられます。'),
+    field('開き方', aiSel), customWrap,
+    h('label', { class: 'check' }, aiCopy, ' 開く前に検索文をクリップボードへコピーする(URLで検索語が反映されない場合に貼り付けられます)'),
+    aiPrev, h('div', { class: 'row gap wrap mt' }, h('button', { class: 'btn small', type: 'button', onclick: () => { aiSave(); openAiSearch('ハエトリソウ', toast); } }, '試しに開く')),
+    h('div', { class: 'note' }, 'うまく開かない/検索語が入らないときは「Google AIモード入口」「通常のGoogle検索」「Geminiアプリ」に切り替えてください。')));
+  aiSave();
+
+  /* Google AI(Gemini)連携 */
+  const gk = h('input', { type: 'password', value: (s.gemini && s.gemini.key) || '', placeholder: 'Gemini APIキー(AIza…)', autocomplete: 'off', 'aria-label': 'Gemini APIキー' });
+  const gm = h('input', { type: 'text', value: (s.gemini && s.gemini.model) || DEFAULT_MODEL, placeholder: DEFAULT_MODEL, 'aria-label': 'モデル名' });
+  const gOut = h('div', { class: 'ai-out' });
+  const gSave = async () => { s.gemini = { key: gk.value.trim(), model: gm.value.trim() || DEFAULT_MODEL }; await saveSettings(s); toast(s.gemini.key ? 'Gemini設定を保存しました' : 'APIキーを削除しました'); };
+  root.append(h('div', { class: 'card' }, h('h2', null, '種類検索のAI連携(Google)'),
+    h('p', { class: 'muted' }, '植物の登録画面にある「Google検索」「Google AIモード」はキー不要で使えます。下の設定をすると、「AIで自動入力」で学名・原産地・適温・成長サイクルなどを自動で入力できます(Google検索で調べた結果をGeminiがまとめます)。'),
+    field('Gemini APIキー(任意)', gk, 'Google AI Studio(aistudio.google.com/apikey)で無料で作成できます'), field('モデル名', gm, 'うまく動かない場合は、AI Studioに表示されている最新のモデル名に変更してください'),
+    h('div', { class: 'row gap wrap' }, h('button', { class: 'btn small primary', type: 'button', onclick: gSave }, '保存'),
+      h('button', { class: 'btn small', type: 'button', onclick: async (e) => { const b = e.currentTarget; await gSave(); b.disabled = true; gOut.innerHTML = ''; gOut.append(h('p', { class: 'muted' }, 'テスト中…')); try { const r = await geminiLookup('ハエトリソウ'); gOut.innerHTML = ''; gOut.append(h('div', { class: 'warn caution' }, `接続OK: ${r.data.sciName || '取得できました'}`)); } catch (err) { gOut.innerHTML = ''; gOut.append(h('div', { class: 'warn urgent' }, err.message)); } b.disabled = false; } }, '接続テスト')), gOut,
+    h('div', { class: 'note' }, 'キーはこの端末のブラウザ内にだけ保存され、AIへの問い合わせ時にGoogleへ送信されます。バックアップファイルには含まれません。他人と共有する端末では登録しないでください。無料枠には回数制限があります。AIの回答は誤りを含むことがあるため、登録前に確認してください。')));
 
   /* 地域 */
   const q = h('input', { type: 'search', placeholder: '市区町村名(例: 世田谷区 / 札幌市 / 那覇市)', 'aria-label': '市区町村名' });
@@ -56,6 +96,8 @@ export async function renderSettings(root) {
     h('div', { class: 'field' }, h('span', { class: 'lbl' }, '通知するタイミング(予定日の…)'), h('div', { class: 'row gap wrap' }, offs.map((o) => h('label', { class: 'check' }, o.el, o.d === 0 ? ' 当日' : ` ${o.d}日前`)))),
     h('label', { class: 'check' }, over, ' 予定日を超過したら通知する(1日1回)'),
     h('div', { class: 'note' }, 'ℹ アプリを開いたとき・画面に戻ったときに通知を判定します。アプリを閉じたままの通知は、ホーム画面に追加したPWA(Chrome/Android等)の「定期バックグラウンド同期」が使える場合のみ届き、時刻は保証されません。確実な時刻通知にはWeb Pushサーバーが必要です(README参照)。通知を許可しなくても、ホーム画面で予定を確認できます。')));
+
+  root.append(h('div', { class: 'card' }, h('h2', null, '用土・配合レシピ'), h('p', { class: 'muted' }, '植物ごとの用土は各植物の詳細画面で確認・変更できます。配合レシピや用土の種類の管理はこちらです。'), h('a', { class: 'btn small', href: '#/soil' }, '用土・配合レシピを管理')));
 
   /* バックアップ */
   const file = h('input', { type: 'file', accept: 'application/json,.json', class: 'hidden', onchange: async (e) => {
