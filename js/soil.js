@@ -91,16 +91,24 @@ export async function repotModal(plant, preset, onDone) {
 }
 
 const mixText = (mix) => mixLine(mix);
+/** 各植物の「現在の用土」= 配合が入力された最新の植え替え記録 */
+export function currentSoilMap(repots) {
+  const m = new Map();
+  for (const r of [...repots].sort((a, b) => a.date.localeCompare(b.date) || (a.ts || 0) - (b.ts || 0))) if ((r.mix || []).length) m.set(r.plantId, r);
+  return m;
+}
+export const openSoilTab = (tab) => { try { sessionStorage.setItem('soilTab', tab); } catch (e) { /* noop */ } };
+const plantLinks = (ids, names, max = 6) => { const ok = ids.filter((id) => names[id]); return [ok.slice(0, max).map((id) => h('a', { href: `#/plants/${id}` }, names[id])), ok.length > max ? h('small', { class: 'muted' }, `ほか${ok.length - max}件`) : null]; };
 const miniBar = (mats, mix) => { const n = normalizeMix(mix); const t = n.reduce((a, r) => a + r.parts, 0) || 1; return h('div', { class: 'mixbar small' }, n.map((r) => h('span', { style: { width: (r.parts / t) * 100 + '%', background: colorOf(mats, r.material) }, title: `${r.material} ${r.parts}` }))); };
 
 /** 植物詳細に表示する「使用している用土」カード(最新の植え替え記録を表示) */
 export function soilCard(plant, repots, mats, onChange) {
   const last = [...repots].sort((a, b) => b.date.localeCompare(a.date) || (b.ts || 0) - (a.ts || 0)).find((r) => (r.mix || []).length) || [...repots][0];
-  const card = h('div', { class: 'card soil-card' }, h('div', { class: 'row between' }, h('h2', null, '使用している用土'), h('a', { class: 'link-s', href: '#/soil' }, '配合レシピの管理')));
+  const card = h('div', { class: 'card soil-card' }, h('div', { class: 'row between' }, h('h2', null, '使用している用土'), h('a', { class: 'link-s', href: '#/soil', onclick: () => openSoilTab('recipes') }, '用土タブで管理')));
   if (!last || !(last.mix || []).length) card.append(h('p', { class: 'muted' }, last ? '植え替えは記録済みですが、用土の配合が未入力です。' : 'まだ用土が記録されていません。'));
   else card.append(h('div', { class: 'soil-now' },
     h('div', { class: 'soil-sprites' }, last.mix.slice(0, 5).map((m) => (MATERIAL_SPRITE[m.material] ? sprite(MATERIAL_SPRITE[m.material], 'soil-sp') : null))),
-    h('div', { class: 'ratio-big' }, ratioText(last.mix)), last.recipeName ? h('strong', null, last.recipeName) : h('strong', null, '手動配合'),
+    h('div', { class: 'ratio-big' }, ratioText(last.mix)), last.recipeName ? h('a', { class: 'recipe-link', href: '#/soil', onclick: () => openSoilTab('recipes') }, h('strong', null, last.recipeName + ' ›')) : h('strong', null, '手動配合'),
     miniBar(mats, last.mix), h('div', { class: 'mix-legend' }, normalizeMix(last.mix).map((m) => h('span', null, h('i', { style: { background: colorOf(mats, m.material) } }), `${m.material} ${m.parts}`))),
     h('small', { class: 'muted' }, `植え替え日 ${fmtDate(last.date)}${last.potSize ? ' ・ 鉢: ' + last.potSize : ''}`)));
   card.append(h('div', { class: 'btn-row left' }, h('button', { class: 'btn small', type: 'button', onclick: () => repotModal(plant, last && last.mix ? last.mix : null, onChange) }, h('span', null, last ? '用土を変更・植え替えを記録' : '用土を記録'))));
@@ -111,25 +119,30 @@ export async function renderSoil(root) {
   const tab = sessionStorage.getItem('soilTab') || 'recipes';
   const [mats, recipes, repots, ctx] = await Promise.all([db.all('materials'), db.all('recipes'), db.all('repots'), loadCtx()]);
   const rerender = () => { root.innerHTML = ''; renderSoil(root); };
+  const cur = currentSoilMap(repots);
+  const usersOfRecipe = (id) => [...cur.entries()].filter(([, r]) => r.recipeId === id).map(([pid]) => pid);
+  const usersOfMat = (n) => [...cur.entries()].filter(([, r]) => (r.mix || []).some((x) => x.material === n)).map(([pid]) => pid);
+  const toLibrary = (val) => { try { sessionStorage.setItem('libSoil', val); } catch (e) { /* noop */ } location.hash = '#/plants'; };
   const tabs = h('div', { class: 'tabs', role: 'tablist' }, [['recipes', '配合レシピ'], ['materials', '用土の種類'], ['history', '植え替え履歴']].map(([k, l]) =>
     h('button', { class: 'tab' + (tab === k ? ' on' : ''), role: 'tab', 'aria-selected': tab === k, onclick: () => { sessionStorage.setItem('soilTab', k); rerender(); } }, l)));
   const body = h('div');
 
   if (tab === 'recipes') {
-    body.append(h('div', { class: 'row between' }, h('p', { class: 'muted' }, '配合を保存して、植え替え時に再利用できます'), h('button', { class: 'btn primary', onclick: () => recipeModal(null, rerender) }, '＋ 配合を作成')));
+    body.append(h('div', { class: 'row between' }, h('p', { class: 'muted' }, '配合に名前を付けて保存すると、植え替え時に選ぶだけで使えます'), h('button', { class: 'btn primary', onclick: () => recipeModal(null, rerender) }, '＋ 配合を保存')));
     if (!recipes.length) body.append(empty('soilbag', 'まだ配合レシピがありません'));
     for (const r of recipes.sort((a, b) => a.name.localeCompare(b.name, 'ja'))) {
-      const used = [...new Set(repots.filter((x) => x.recipeId === r.id).map((x) => x.plantId))].map((id) => ctx.names[id]).filter(Boolean);
+      const used = usersOfRecipe(r.id).filter((id) => ctx.names[id]);
       body.append(h('div', { class: 'card' }, h('div', { class: 'row between' }, h('h3', null, r.name), h('div', { class: 'row gap' },
         h('button', { class: 'btn small', onclick: () => recipeModal(r, rerender) }, '編集'),
         h('button', { class: 'btn small ghost', onclick: async () => { if (await confirmBox(`配合「${r.name}」を削除しますか?\n(植え替え履歴の配合内容は残ります)`, '削除', true)) { await db.del('recipes', r.id); rerender(); } } }, '削除'))),
         h('div', { class: 'ratio-big' }, ratioText(r.mix)), miniBar(mats, r.mix), h('div', { class: 'mix-legend' }, normalizeMix(r.mix).map((m) => h('span', null, h('i', { style: { background: colorOf(mats, m.material) } }), `${m.material} ${m.parts}`))),
-        r.note ? h('p', { class: 'muted' }, r.note) : null, used.length ? h('small', { class: 'muted' }, '使用した植物: ' + used.join('、')) : null));
+        r.note ? h('p', { class: 'muted' }, r.note) : null,
+        h('div', { class: 'recipe-use' }, h('small', null, '使っている植物:'), used.length ? [plantLinks(used, ctx.names), h('button', { class: 'btn small ghost', type: 'button', onclick: () => toLibrary('r:' + r.id) }, 'ライブラリーで絞り込む')] : h('small', null, 'まだありません(植え替え記録でこの配合を選ぶと表示されます)'))));
     }
   } else if (tab === 'materials') {
     const nm = h('input', { type: 'text', placeholder: '用土の名前(例: ゼオライト)', 'aria-label': '用土の名前' });
     body.append(h('div', { class: 'row gap' }, nm, h('button', { class: 'btn primary', onclick: async () => { const n = nm.value.trim(); if (!n) return; if (mats.some((m) => m.name === n)) return toast('すでに登録されています'); await db.put('materials', { id: uid(), name: n, builtin: false }); rerender(); } }, '追加')));
-    body.append(h('div', { class: 'cards small' }, mats.map((m) => h('div', { class: 'card mat' }, MATERIAL_SPRITE[m.name] ? sprite(MATERIAL_SPRITE[m.name]) : h('div', { class: 'sprite ph' }, '＋'), h('strong', null, m.name),
+    body.append(h('div', { class: 'cards small' }, mats.map((m) => h('div', { class: 'card mat' }, MATERIAL_SPRITE[m.name] ? sprite(MATERIAL_SPRITE[m.name]) : h('div', { class: 'sprite ph' }, '＋'), h('strong', null, m.name), (() => { const u = usersOfMat(m.name); return u.length ? h('div', { class: 'mat-use' }, plantLinks(u, ctx.names, 3), h('a', { href: '#/plants', onclick: () => { try { sessionStorage.setItem('libSoil', 'm:' + m.name); } catch (e) { /* noop */ } } }, '一覧で見る')) : null; })(),
       !m.builtin ? h('button', { class: 'icon-btn', 'aria-label': m.name + 'を削除', onclick: async () => { if (await confirmBox(`「${m.name}」を削除しますか?`, '削除', true)) { await db.del('materials', m.id); rerender(); } } }, '×') : h('small', { class: 'muted' }, '標準')))));
   } else {
     body.append(h('div', { class: 'row between' }, h('p', { class: 'muted' }, 'すべての個体の植え替え記録'), ctx.plants.length ? h('button', { class: 'btn primary', onclick: () => repotModal(null, null, rerender) }, '＋ 植え替えを記録') : null));
@@ -141,5 +154,5 @@ export async function renderSoil(root) {
         r.recipeName ? h('div', null, '配合: ' + r.recipeName) : null, miniBar(mats, r.mix), h('small', { class: 'muted' }, mixText(r.mix)), r.potSize ? h('div', { class: 'muted' }, '鉢: ' + r.potSize) : null, r.note ? h('div', null, r.note) : null, r.photo ? h('img', { class: 'thumb', src: r.photo, alt: '植え替え時の写真' }) : null));
     }
   }
-  root.append(h('div', { class: 'page-head' }, h('h1', null, '用土・配合'), h('a', { class: 'btn small ghost', href: '#/settings' }, '設定へ戻る')), tabs, body);
+  root.append(h('div', { class: 'page-head' }, h('h1', null, '用土'), h('span', { class: 'count' }, `${recipes.length}配合 / ${mats.length}種`)), tabs, body);
 }

@@ -33,16 +33,78 @@ export function h(tag, attrs, ...kids) {
   return el;
 }
 
-export const sprite = (name, cls = '') => h('img', { src: `assets/sprites/${name}.png`, alt: '', class: 'sprite ' + cls, loading: 'lazy' });
+/** 整理で削除したイラストの代わり(すでに登録済みの植物の表示を保つ) */
+const SPRITE_ALIAS = {'maidenhair': 'foliage_10', 'pearls': 'foliage_18', 'foliage_06': 'echeveria', 'foliage_09': 'fern', 'stapelia': 'foliage_16', 'nepenthes2': 'foliage_04', 'foliage_03': 'drosera', 'nepenthes': 'foliage_02', 'venus': 'foliage_01', 'begonia1': 'foliage_12', 'begonia2': 'foliage_12', 'foliage_07': 'foliage_21', 'lithops': 'foliage_21', 'sarracenia': 'foliage_05', 'hoya': 'foliage_15', 'foliage_17': 'hoya_var', 'foliage_13': 'i_leaf', 'foliage_14': 'i_leaf', 'foliage_08': 'cactus', 'dioscorea': 'pachypodium', 'foliage_11': 'pachypodium', 'f_hibiscus_y': 'f_hibiscus', 'f_lotus': 'f_waterlily', 'f_phalaenopsis': 'f_dendrobium', 'f_cattleya': 'f_dendrobium', 'f_peony': 'f_camellia', 'f_rose': 'f_camellia', 'f_toadlily': 'f_lily', 'f_gerbera': 'f_daisy', 'f_cosmos': 'f_daisy', 'f_saintpaulia': 'f_phlox', 'f_calla': 'f_anthurium'};
+export const resolveSprite = (id) => SPRITE_ALIAS[id] || id;
+export const sprite = (name, cls = '') => h('img', { src: `assets/sprites/${resolveSprite(name)}.png`, alt: '', class: 'sprite ' + cls, loading: 'lazy' });
 
-export const PLANT_SPRITES = [
-  ['venus', 'ハエトリソウ'], ['drosera', 'ドロセラ'], ['nepenthes', 'ネペンテス'], ['nepenthes2', 'ネペンテス(小)'],
-  ['sarracenia', 'サラセニア'], ['pinguicula', 'ピンギキュラ'], ['echeveria', 'エケベリア'], ['lithops', 'リトープス'],
-  ['cactus', 'サボテン'], ['fern', 'シダ'], ['staghorn', 'ビカクシダ'], ['maidenhair', 'アジアンタム'],
-  ['dioscorea', '亀甲竜'], ['begonia1', 'ベゴニア'], ['alocasia', 'アロカシア'], ['begonia2', 'ベゴニア(赤)'],
-  ['hoya_var', 'ホヤ(斑入り)'], ['stapelia', 'スタペリア'], ['hoya', 'ホヤ'], ['pachypodium', 'パキポディウム'], ['pearls', 'グリーンネックレス'],
-];
-export const spriteName = (id) => (PLANT_SPRITES.find((s) => s[0] === id) || [])[1] || '';
+/** サンプルイラスト。[ID, 名前, 読み] ― 名前は検索・自動選択のための内部データ(マスクデータ)で、画面には表示しない。読み(五十音)順に並べている */
+export const SPRITE_DATA = {
+  foliage: [
+  ['foliage_10', 'アジアンタム', 'あじあんたむ'],
+  ['alocasia', 'アロカシア', 'あろかしあ'],
+  ['echeveria', 'エケベリア', 'えけべりあ'],
+  ['foliage_18', 'グリーンネックレス', 'ぐりーんねっくれす'],
+  ['foliage_21', 'コノフィツム', 'このふぃつむ'],
+  ['cactus', 'サボテン', 'さぼてん'],
+  ['foliage_05', 'サラセニア(白)', 'さらせにあしろ'],
+  ['fern', 'シダ', 'しだ'],
+  ['foliage_16', 'スタペリア', 'すたぺりあ'],
+  ['foliage_04', 'セファロタス', 'せふぁろたす'],
+  ['drosera', 'ドロセラ', 'どろせら'],
+  ['foliage_02', 'ネペンテス', 'ねぺんてす'],
+  ['foliage_01', 'ハエトリソウ', 'はえとりそう'],
+  ['pachypodium', 'パキポディウム', 'ぱきぽでぃうむ'],
+  ['staghorn', 'ビカクシダ', 'びかくしだ'],
+  ['pinguicula', 'ピンギキュラ', 'ぴんぎきゅら'],
+  ['foliage_12', 'ベゴニア(銀点)', 'べごにあぎんてん'],
+  ['foliage_15', 'ホヤ(花つき)', 'ほやはなつき'],
+  ['hoya_var', 'ホヤ(斑入り)', 'ほやふいり'],
+  ['foliage_20', 'ポトス', 'ぽとす'],
+  ['foliage_19', 'モンステラ', 'もんすてら'],
+  ],
+  flower: [
+  ['f_iris', 'アイリス', 'あいりす'],
+  ['f_morningglory', 'アサガオ', 'あさがお'],
+  ['f_hydrangea', 'アジサイ', 'あじさい'],
+  ['f_anthurium', 'アンスリウム', 'あんすりうむ'],
+  ['f_oncidium', 'オンシジウム', 'おんしじうむ'],
+  ['f_gypsophila', 'カスミソウ', 'かすみそう'],
+  ['f_carnation', 'カーネーション', 'かーねーしょん'],
+  ['f_gardenia', 'クチナシ', 'くちなし'],
+  ['f_clematis', 'クレマチス', 'くれまちす'],
+  ['f_sakura', '桜', 'さくら'],
+  ['f_cyclamen', 'シクラメン', 'しくらめん'],
+  ['f_jasmine', 'ジャスミン', 'じゃすみん'],
+  ['f_jewel', 'ジュエルオーキッド', 'じゅえるおーきっど'],
+  ['f_jinchoge', 'ジンチョウゲ', 'じんちょうげ'],
+  ['f_waterlily', 'スイレン', 'すいれん'],
+  ['f_lilyvalley', 'スズラン', 'すずらん'],
+  ['f_tulip', 'チューリップ', 'ちゅーりっぷ'],
+  ['f_camellia', 'ツバキ', 'つばき'],
+  ['f_dendrobium', 'デンドロビウム', 'でんどろびうむ'],
+  ['f_passion', 'トケイソウ', 'とけいそう'],
+  ['f_dianthus', 'ナデシコ', 'なでしこ'],
+  ['f_hibiscus', 'ハイビスカス(赤)', 'はいびすかすあか'],
+  ['f_paphio', 'パフィオペディルム', 'ぱふぃおぺでぃるむ'],
+  ['f_pansy', 'パンジー', 'ぱんじー'],
+  ['f_spiderlily', 'ヒガンバナ', 'ひがんばな'],
+  ['f_sunflower', 'ヒマワリ', 'ひまわり'],
+  ['f_fuchsia', 'フクシア', 'ふくしあ'],
+  ['f_phlox', 'プリムラ', 'ぷりむら'],
+  ['f_plumeria', 'プルメリア', 'ぷるめりあ'],
+  ['f_petunia', 'ペチュニア', 'ぺちゅにあ'],
+  ['f_pentas', 'ペンタス', 'ぺんたす'],
+  ['f_marigold', 'マリーゴールド', 'まりーごーるど'],
+  ['f_daisy', 'マーガレット', 'まーがれっと'],
+  ['f_lily', 'ユリ', 'ゆり'],
+  ['f_lavender', 'ラベンダー', 'らべんだー'],
+  ['f_rexbegonia', 'レックスベゴニア', 'れっくすべごにあ'],
+  ['f_rosemary', 'ローズマリー', 'ろーずまりー'],
+  ],
+};
+export const SPRITE_GROUPS = [['葉', SPRITE_DATA.foliage], ['花', SPRITE_DATA.flower]];
+export const PLANT_SPRITES = [...SPRITE_DATA.foliage, ...SPRITE_DATA.flower];
 
 export function toast(msg, ms = 2600, action) {
   const t = h('div', { class: 'toast', role: 'status' }, h('span', null, msg),
@@ -147,7 +209,7 @@ export const ICONS = {
   plants: '<path d="M12 21V11M12 11c0-4 3-7 8-7 0 5-3 8-8 7zM12 14c0-3-2-5-6-5 0 4 2 6 6 5z"/>',
   calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
   tasks: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/>',
-  soil: '<path d="M4 20h16M6 20c0-5 2-8 6-8s6 3 6 8M9 12c0-3 1-5 3-7 2 2 3 4 3 7"/>',
+  soil: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 10c3-2 5 2 9 0s6 2 9 0M3 15c3-2 5 2 9 0s6 2 9 0"/>',
   grave: '<path d="M6 21V9a6 6 0 0112 0v12"/><path d="M3 21h18"/><path d="M12 7.5v7M9.2 10h5.6"/>',
   settings: '<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
   plus: '<path d="M12 5v14M5 12h14"/>', check: '<path d="M5 12.5l4.5 4.5L19 7"/>', edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',

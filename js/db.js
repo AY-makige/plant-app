@@ -52,22 +52,25 @@ export const db = {
   },
 };
 
-export const DEFAULT_MATERIALS = ['赤玉土', '鹿沼土', '軽石', 'パーライト', 'バーミキュライト', 'ウッドチップ', 'バーク', '培養土', '黒土', '腐葉土', '堆肥', 'ピートモス', 'ミズゴケ', '川砂', 'くん炭', 'ハイドロボール'];
-export const MATERIAL_SPRITE = { 鹿沼土: 'soil_kanuma', 赤玉土: 'soil_akadama', 培養土: 'soilbag', 軽石: 'soil_pumice', パーライト: 'soil_perlite', ピートモス: 'soil_peat', 水苔: 'soil_moss', ミズゴケ: 'soil_moss', 川砂: 'soil_sand' };
+export const DEFAULT_MATERIALS = ['赤玉土', '鹿沼土', '軽石', 'パーライト', 'バーミキュライト', 'バークチップ', 'ココヤシチップ', '培養土', '黒土', '腐葉土', '堆肥', 'ピートモス', 'ミズゴケ', '川砂', 'くん炭', 'ハイドロボール'];
+/** 旧名称 → 現在の名称(統合・改名) */
+export const MATERIAL_RENAME = { 水苔: 'ミズゴケ', ウッドチップ: 'バークチップ', バーク: 'バークチップ' };
+export const MATERIAL_SPRITE = { 赤玉土: 'mat_akadama', 鹿沼土: 'mat_kanuma', 軽石: 'mat_pumice', パーライト: 'mat_perlite', バーミキュライト: 'mat_vermiculite', バークチップ: 'mat_bark', ココヤシチップ: 'mat_cocochip', 培養土: 'mat_potting', 黒土: 'mat_kuroboku', 腐葉土: 'mat_leafmold', 堆肥: 'mat_compost', ピートモス: 'mat_peat', ミズゴケ: 'mat_sphagnum', 川砂: 'mat_sand', くん炭: 'mat_kunthan', ハイドロボール: 'mat_hydroball' };
 
 export async function ensureDefaults() {
-  // 標準の用土を初期登録(既存データには不足分だけ追加。旧「水苔」は「ミズゴケ」へ統一)
+  // 標準の用土を初期登録(既存データには不足分だけ追加)。旧名称は改名・統合し、配合レシピ/植え替え履歴の名前も更新
   const mats = await db.all('materials');
-  const old = mats.find((m) => m.name === '水苔');
-  if (old && !mats.some((m) => m.name === 'ミズゴケ')) {
-    await db.put('materials', { ...old, name: 'ミズゴケ' });
-    for (const r of await db.all('recipes')) if ((r.mix || []).some((x) => x.material === '水苔')) await db.put('recipes', { ...r, mix: r.mix.map((x) => (x.material === '水苔' ? { ...x, material: 'ミズゴケ' } : x)) });
-    for (const r of await db.all('repots')) if ((r.mix || []).some((x) => x.material === '水苔')) await db.put('repots', { ...r, mix: r.mix.map((x) => (x.material === '水苔' ? { ...x, material: 'ミズゴケ' } : x)) });
-    mats.splice(mats.indexOf(old), 1, { ...old, name: 'ミズゴケ' });
+  const olds = mats.filter((m) => MATERIAL_RENAME[m.name]);
+  if (olds.length) {
+    const fix = (mix) => { const acc = new Map(); for (const x of mix || []) { const n = MATERIAL_RENAME[x.material] || x.material; const k = x.parts != null ? 'parts' : 'pct'; const cur = acc.get(n) || { ...x, material: n, [k]: 0 }; cur[k] = (cur[k] || 0) + (Number(x[k]) || 0); acc.set(n, cur); } return [...acc.values()]; };
+    for (const m of olds) await db.del('materials', m.id);
+    for (const r of await db.all('recipes')) if ((r.mix || []).some((x) => MATERIAL_RENAME[x.material])) await db.put('recipes', { ...r, mix: fix(r.mix) });
+    for (const r of await db.all('repots')) if ((r.mix || []).some((x) => MATERIAL_RENAME[x.material])) await db.put('repots', { ...r, mix: fix(r.mix) });
   }
-  const have = new Set(mats.map((m) => m.name));
+  const left = mats.filter((m) => !MATERIAL_RENAME[m.name]);
+  const have = new Set(left.map((m) => m.name));
   for (const name of DEFAULT_MATERIALS) if (!have.has(name)) await db.put('materials', { id: 'm-' + name, name, builtin: true });
-  for (const m of mats) if (DEFAULT_MATERIALS.includes(m.name) && !m.builtin) await db.put('materials', { ...m, builtin: true });
+  for (const m of left) if (DEFAULT_MATERIALS.includes(m.name) && !m.builtin) await db.put('materials', { ...m, builtin: true });
   if (!(await db.get('kv', 'settings'))) {
     await db.kvSet('settings', { region: null, notify: { enabled: true, offsets: [3, 1, 0], overdue: true }, margin: 3 });
   }

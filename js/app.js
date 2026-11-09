@@ -11,8 +11,8 @@ import { renderSettings } from './settings.js';
 import * as N from './notify.js';
 import { applyTheme, toggleMode, resolvedMode } from './theme.js';
 
-const NAV = [['home', 'ホーム', 'home'], ['plants', 'ライブラリー', 'plants'], ['tasks', '水やり', 'drop'], ['calendar', 'カレンダー', 'calendar'], ['memorial', 'メモリアル', 'grave']];
-const TITLES = Object.fromEntries([...NAV.map(([k, l]) => [k, l]), ['settings', '設定'], ['soil', '用土・配合']]);
+const NAV = [['home', 'ホーム', 'home'], ['plants', 'ライブラリー', 'plants'], ['tasks', '水やり', 'drop'], ['calendar', 'カレンダー', 'calendar'], ['soil', '用土', 'soil'], ['memorial', 'メモリアル', 'grave']];
+const TITLES = Object.fromEntries([...NAV.map(([k, l]) => [k, l]), ['settings', '設定']]);
 
 const routes = [
   [/^#\/home$/, 'home', (r) => renderHome(r)],
@@ -22,7 +22,7 @@ const routes = [
   [/^#\/plants\/([^/]+)$/, 'plants', (r, m) => renderDetail(r, m[1])],
   [/^#\/calendar$/, 'calendar', (r) => renderCalendar(r)],
   [/^#\/tasks$/, 'tasks', (r) => renderTasks(r)],
-  [/^#\/soil$/, 'settings', (r) => renderSoil(r)],
+  [/^#\/soil$/, 'soil', (r) => renderSoil(r)],
   [/^#\/memorial$/, 'memorial', (r) => renderMemorial(r)],
   [/^#\/memorial\/([^/]+)$/, 'memorial', (r, m) => renderGrave(r, m[1])],
   [/^#\/settings$/, 'settings', (r) => renderSettings(r)],
@@ -40,7 +40,7 @@ async function route() {
     if (my !== token) return;
     main.replaceChildren(tmp); window.scrollTo(0, 0);
     document.querySelectorAll('[data-nav]').forEach((a) => a.classList.toggle('on', a.dataset.nav === nav));
-    document.body.dataset.route = nav; document.getElementById('top-title').textContent = hash === '#/soil' ? TITLES.soil : TITLES[nav] || '植物管理'; main.classList.remove('enter'); void main.offsetWidth; main.classList.add('enter');
+    document.body.dataset.route = nav; document.getElementById('top-title').textContent = TITLES[nav] || '植物管理'; main.classList.remove('enter'); void main.offsetWidth; main.classList.add('enter');
     return;
   }
   location.hash = '#/home';

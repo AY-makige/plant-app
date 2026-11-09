@@ -1,10 +1,10 @@
 // plants.js — ライブラリー(一覧・詳細・登録/編集)
-import { h, sprite, icon, empty, field, opt, monthChips, mixLine, modal, confirmBox, toast, photoInput, fmtDate, relDays, ownStart, lifespanText, PLANT_SPRITES, spriteName, MONTHS, C } from './ui.js';
+import { h, sprite, icon, empty, field, opt, monthChips, mixLine, modal, confirmBox, toast, photoInput, fmtDate, relDays, ownStart, lifespanText, PLANT_SPRITES, SPRITE_GROUPS, resolveSprite, MONTHS, C } from './ui.js';
 import { db, uid } from './db.js';
 import { loadCtx, deleteLog, deletePlant } from './data.js';
 import { googleUrl, openAiSearch, imageUrl, RESEARCH_ITEMS, FIELDS, ENVS, getEnv, setEnv, speciesQuery, openTab, geminiConfig, geminiLookup, toFormValues } from './search.js';
 import { careModal } from './care.js';
-import { repotModal, soilCard } from './soil.js';
+import { repotModal, soilCard, currentSoilMap } from './soil.js';
 import { graveForm } from './memorial.js';
 
 export const CYCLE = [['growth', '成長期', 'growth'], ['dormant', '休眠期', 'dormant'], ['fertSlow', '追肥推奨期(遅効性)', 'fertslow'], ['fertLiquid', '液肥推奨期', 'fertliq'], ['bloom', '開花予定', 'bloom'], ['repot', '植え替え推奨', 'repot']];
@@ -38,7 +38,10 @@ const statusBadge = (s) => h('span', { class: 'badge st-' + ({ 育成中: 'grow'
 /* ───────── 一覧 ───────── */
 export async function renderList(root) {
   const ctx = await loadCtx();
-  const f = { st: '', loc: '' };
+  const f = { st: '', loc: '', soil: '' };
+  const [repAll, recAll, matAll] = await Promise.all([db.all('repots'), db.all('recipes'), db.all('materials')]);
+  const curSoil = currentSoilMap(repAll);
+  try { f.soil = sessionStorage.getItem('libSoil') || ''; sessionStorage.removeItem('libSoil'); } catch (e) { /* noop */ }
   const q = h('input', { type: 'search', placeholder: '名前・学名・産地で検索', 'aria-label': '検索' });
   const chipRow = h('div', { class: 'chips scroll', 'aria-label': '絞り込み' });
   const SIZES = [['l', '大'], ['m', '中'], ['s', '小'], ['list', 'リスト']];
@@ -62,6 +65,7 @@ export async function renderList(root) {
       const s = ctx.sp[p.speciesId] || {};
       if (f.st && p.status !== f.st) return false;
       if (f.loc && p.location !== f.loc) return false;
+      if (f.soil) { const r = curSoil.get(p.id); if (!r) return false; if (f.soil.startsWith('r:') ? r.recipeId !== f.soil.slice(2) : !(r.mix || []).some((x) => x.material === f.soil.slice(2))) return false; }
       if (!kw) return true;
       return [p.nickname, s.commonName, s.sciName, s.origin, p.notes].join(' ').toLowerCase().includes(kw);
     });
@@ -79,6 +83,9 @@ export async function renderList(root) {
     h('div', { class: 'searchbar' }, q), ext,
     h('label', { class: 'loc-filter' }, h('span', null, '栽培場所'), (() => { const sel = h('select', { 'aria-label': '栽培場所で絞り込み' }, h('option', { value: '' }, 'すべて'), LOCS.map(([k, l]) => h('option', { value: k }, l))); sel.addEventListener('change', () => { f.loc = sel.value; draw(); }); return sel; })()),
     h('div', { class: 'size-row' }, h('span', { class: 'muted' }, '表示サイズ'), sizeSeg),
+    h('label', { class: 'loc-filter soil-filter' }, h('span', null, '用土'), (() => { const sel = h('select', { 'aria-label': '用土で絞り込み' }, h('option', { value: '' }, 'すべて'),
+      recAll.length ? h('optgroup', { label: '配合レシピ' }, recAll.map((r) => h('option', { value: 'r:' + r.id }, r.name))) : null,
+      h('optgroup', { label: '用土の種類' }, matAll.map((m) => h('option', { value: 'm:' + m.name }, m.name)))); sel.value = f.soil; sel.addEventListener('change', () => { f.soil = sel.value; draw(); }); return sel; })()),
     chipRow, grid,
     h('a', { class: 'fab', href: '#/plants/new', 'aria-label': '植物を新規登録' }, icon('plus', 28)));
   drawChips(); draw();
@@ -176,13 +183,27 @@ export async function renderForm(root, id, params) {
   let sp = ctx.sp[p.speciesId] || { cycle: {}, commonName: (!editing && params && params.get('name')) || '' };
   const gcfg = await geminiConfig();
   const photo = photoInput(p.photo);
-  let spriteSel = p.sprite || '';
+  let spriteSel = resolveSprite(p.sprite || ''); if (!PLANT_SPRITES.some((x) => x[0] === spriteSel)) spriteSel = '';
 
   const form = h('form', { class: 'form', onsubmit: (e) => e.preventDefault() });
   const v = (n, val = '', type = 'text', extra = {}) => h('input', { type, name: n, value: val ?? '', ...extra });
   const spSelect = h('select', { name: 'speciesId' }, opt('', '＋ 新しい種類として登録'), ctx.species.sort((a, b) => a.commonName.localeCompare(b.commonName, 'ja')).map((s) => opt(s.id, s.commonName, p.speciesId)));
-  const spriteGrid = h('div', { class: 'sprite-grid', role: 'radiogroup', 'aria-label': 'イラストを選ぶ' }, PLANT_SPRITES.map(([sid, lab]) =>
-    h('button', { type: 'button', class: 'sp-opt' + (spriteSel === sid ? ' sel' : ''), title: lab, 'aria-label': lab, onclick: (e) => { spriteSel = spriteSel === sid ? '' : sid; [...spriteGrid.children].forEach((c) => c.classList.remove('sel')); if (spriteSel) e.currentTarget.classList.add('sel'); } }, sprite(sid))));
+  const spOpts = new Map();
+  const pickSprite = (sid) => { spriteSel = sid; spOpts.forEach((el, k) => el.classList.toggle('sel', k === sid)); };
+  const catOf = (sid) => Math.max(0, SPRITE_GROUPS.findIndex(([, list]) => list.some((x) => x[0] === sid)));
+  let spCat = catOf(spriteSel);
+  const spGroups = SPRITE_GROUPS.map(([gname, list]) => h('div', { class: 'sprite-grid', role: 'radiogroup', 'aria-label': gname }, list.map(([sid]) => {
+    // 名前は画面に出さない(自動選択用の内部データは ui.js の SPRITE_DATA)
+    const b = h('button', { type: 'button', class: 'sp-opt' + (spriteSel === sid ? ' sel' : ''), 'aria-label': 'イラスト', onclick: () => pickSprite(spriteSel === sid ? '' : sid) }, sprite(sid));
+    spOpts.set(sid, b); return b;
+  })));
+  const catSeg = h('div', { class: 'seg sp-cat', role: 'tablist', 'aria-label': 'イラストの種類' }, SPRITE_GROUPS.map(([gname], i) => h('button', { type: 'button', class: 'seg-b', role: 'tab', onclick: () => showCat(i) }, gname)));
+  const showCat = (i) => {
+    spCat = i; spGroups.forEach((g, k) => { g.hidden = k !== i; });
+    [...catSeg.children].forEach((b, k) => { b.classList.toggle('on', k === i); b.setAttribute('aria-selected', k === i); });
+  };
+  const spriteGrid = h('div', { class: 'sprite-picker' }, h('div', { class: 'sp-cat-label' }, 'おおまかな種類'), catSeg, h('div', { class: 'sprite-scroll' }, spGroups));
+  showCat(spCat);
 
   const speciesFields = () => {
     const wrap = h('div', { id: 'species-fields' });
@@ -198,6 +219,13 @@ export async function renderForm(root, id, params) {
     return wrap;
   };
   let spWrap = speciesFields();
+  // 流通名に合うイラストを自動で選ぶ(未選択のときだけ。後から自由に変更できます)
+  form.addEventListener('input', (e) => {
+    if (!e.target || e.target.name !== 'commonName' || spriteSel) return;
+    const name = e.target.value.trim(); if (name.length < 2) return;
+    const hit = PLANT_SPRITES.find(([, lab]) => name === lab || name.includes(lab.replace(/\(.*\)$/, '')));
+    if (hit) { pickSprite(hit[0]); if (catOf(hit[0]) !== spCat) showCat(catOf(hit[0])); const el = spOpts.get(hit[0]); el && el.scrollIntoView && el.scrollIntoView({ block: 'nearest' }); }
+  });
   spSelect.addEventListener('change', () => {
     sp = ctx.sp[spSelect.value] || { cycle: {} };
     const nw = speciesFields(); spWrap.replaceWith(nw); spWrap = nw;
