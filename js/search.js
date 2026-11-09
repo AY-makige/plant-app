@@ -41,10 +41,16 @@ export const imageUrl = (q) => `https://www.google.com/search?tbm=isch&q=${enc(q
 export const RESEARCH_ITEMS = ['正式名称・学名', '本来の生息地・原産地', '適温', '最低温度(℃)', '最高温度(℃)', '湿度', '日照条件', '水分条件', '成長サイクル(成長期・休眠期・植え替え推奨)'];
 /** 入力欄の name と対応(AIの結果を反映する欄) */
 export const FIELDS = ['sciName', 'origin', 'tempOpt', 'tempMin', 'tempMax', 'humidity', 'light', 'moisture'];
-/** AIモード/Gemini用の質問文(名前だけを差し替える固定文) */
-export const aiPrompt = (name) => `植物「${name}」について、次の項目を日本語で簡潔に教えてください(日本の本州の平地で栽培する場合の目安)。\n${RESEARCH_ITEMS.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n成長サイクルは1〜12月の月で示してください。信頼できる情報源も示してください。`;
+/* 栽培環境(屋内/屋外)。AI検索・Geminiの質問に反映する。設定は端末に保存 */
+export const ENVS = [['indoor', '屋内'], ['outdoor', '屋外']];
+export const getEnv = () => { try { const v = localStorage.getItem('pk-env'); return v === 'indoor' ? 'indoor' : 'outdoor'; } catch (e) { return 'outdoor'; } };
+export const setEnv = (v) => { try { localStorage.setItem('pk-env', v); } catch (e) { /* noop */ } };
+export const envLabel = (e) => (e === 'indoor' ? '屋内' : '屋外');
+const envText = (e) => (e === 'indoor' ? '屋内(室内の窓辺・室温管理)で栽培する場合' : '屋外(庭・ベランダなど)で栽培する場合');
+/** AIモード/Gemini用の質問文(名前と環境だけを差し替える固定文) */
+export const aiPrompt = (name, env = getEnv()) => `植物「${name}」について、日本の本州の平地で${envText(env)}を前提に、次の項目を日本語で簡潔に教えてください。\n${RESEARCH_ITEMS.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n成長サイクルは1〜12月の月で示してください。信頼できる情報源も示してください。`;
 /** 通常のGoogle検索用(短いキーワード) */
-export const speciesQuery = (name) => `${name} 学名 原産地 適温 最低温度 最高温度 湿度 日照 水やり 成長期 休眠期 植え替え`;
+export const speciesQuery = (name, env = getEnv()) => `${name} ${envLabel(env)}栽培 学名 原産地 適温 最低温度 最高温度 湿度 日照 水やり 成長期 休眠期 植え替え`;
 export const openTab = (url) => { window.open(url, '_blank', 'noopener,noreferrer'); };
 
 export const DEFAULT_MODEL = 'gemini-flash-latest';
@@ -54,8 +60,8 @@ export async function geminiConfig() {
   return { key: (s.gemini && s.gemini.key) || '', model: (s.gemini && s.gemini.model) || DEFAULT_MODEL };
 }
 
-const PROMPT = (name) => `あなたは園芸の専門家です。植物「${name}」について、Google検索で信頼できる情報(園芸店・植物園・大学・専門書の記載など)を調べ、
-日本の本州の平地で栽培する場合を前提に、次のJSONだけを出力してください。説明文やコードフェンスは不要です。分からない項目は null にしてください。
+const PROMPT = (name, env) => `あなたは園芸の専門家です。植物「${name}」について、Google検索で信頼できる情報(園芸店・植物園・大学・専門書の記載など)を調べ、
+日本の本州の平地で${envText(env)}を前提に、次のJSONだけを出力してください。説明文やコードフェンスは不要です。分からない項目は null にしてください。
 {
  "sciName": "正式名称・学名",
  "origin": "本来の生息地・原産地(簡潔に)",
@@ -86,7 +92,7 @@ export async function geminiLookup(name) {
   try {
     res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: PROMPT(name) }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0.2 } }),
+      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: PROMPT(name, getEnv()) }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0.2 } }),
     });
   } catch (e) { throw new Error('Geminiに接続できませんでした(オフライン、または通信がブロックされています)。'); }
   let body = null; try { body = await res.json(); } catch (e) { /* noop */ }

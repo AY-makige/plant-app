@@ -1,20 +1,39 @@
 // plants.js — ライブラリー(一覧・詳細・登録/編集)
-import { h, sprite, icon, empty, field, opt, monthChips, modal, confirmBox, toast, photoInput, fmtDate, relDays, ownStart, lifespanText, PLANT_SPRITES, spriteName, MONTHS, C } from './ui.js';
+import { h, sprite, icon, empty, field, opt, monthChips, mixLine, modal, confirmBox, toast, photoInput, fmtDate, relDays, ownStart, lifespanText, PLANT_SPRITES, spriteName, MONTHS, C } from './ui.js';
 import { db, uid } from './db.js';
 import { loadCtx, deleteLog, deletePlant } from './data.js';
-import { googleUrl, openAiSearch, imageUrl, RESEARCH_ITEMS, FIELDS, speciesQuery, openTab, geminiConfig, geminiLookup, toFormValues } from './search.js';
+import { googleUrl, openAiSearch, imageUrl, RESEARCH_ITEMS, FIELDS, ENVS, getEnv, setEnv, speciesQuery, openTab, geminiConfig, geminiLookup, toFormValues } from './search.js';
 import { careModal } from './care.js';
 import { repotModal, soilCard } from './soil.js';
 import { graveForm } from './memorial.js';
 
 export const CYCLE = [['growth', '成長期', 'growth'], ['dormant', '休眠期', 'dormant'], ['bloom', '開花予定', 'bloom'], ['repot', '植え替え推奨', 'repot']];
-export const STATUSES = ['成長中', '休眠中', '療養中', 'その他'];
+export const STATUSES = ['育成中', '成長中', '休眠中', '療養中', 'その他'];  // 育成中=通常の状態 / 成長中=成長期 / 休眠中=休眠期
+
+function statusModal(p, onDone) {
+  modal('状態を変更', (b, close) => {
+    b.append(h('p', { class: 'muted' }, '育成中=通常の状態 / 成長中=成長期 / 休眠中=休眠期'), h('div', { class: 'status-list' }, STATUSES.map((s) => h('button', { class: 'btn' + (p.status === s ? ' primary' : ''), type: 'button', onclick: async () => {
+      if (s === '休眠中' && p.status !== '休眠中') p.prevStatus = p.status;
+      p.status = s; await db.put('plants', p); close(); toast(`状態を「${s}」にしました`); onDone && onDone();
+    } }, s))));
+  });
+}
+
+/** 屋内/屋外の切替(AI検索・自動入力の前提条件。端末に保存) */
+function envToggle() {
+  const sel = h('select', { class: 'env-sel', 'aria-label': '栽培環境(屋内/屋外)' }, ENVS.map(([k, l]) => h('option', { value: k }, l)));
+  sel.value = getEnv();
+  sel.addEventListener('change', () => { setEnv(sel.value); document.querySelectorAll('.env-sel').forEach((el) => { el.value = sel.value; }); });
+  return sel;
+}
+const LOCS = [['indoor', '屋内'], ['outdoor', '屋外']];
+const locLabel = (v) => (LOCS.find((x) => x[0] === v) || [, ''])[1];
 
 export function avatar(p, cls = '') {
   if (p.photo) return h('img', { src: p.photo, alt: '', class: 'avatar ' + cls });
   return h('div', { class: 'avatar sprite-av ' + cls }, sprite(p.sprite || 'i_leaf'));
 }
-const statusBadge = (s) => h('span', { class: 'badge st-' + ({ 成長中: 'grow', 休眠中: 'dorm', 療養中: 'care', その他: 'other' }[s] || 'other') }, s || '—');
+const statusBadge = (s) => h('span', { class: 'badge st-' + ({ 育成中: 'grow', 成長中: 'grow', 休眠中: 'dorm', 療養中: 'care', その他: 'other' }[s] || 'other') }, s || '—');
 
 /* ───────── 一覧 ───────── */
 export async function renderList(root) {
@@ -26,12 +45,12 @@ export async function renderList(root) {
   const ext = h('div', { class: 'ext-search' });
   const drawExt = () => {
     ext.innerHTML = ''; const kw = q.value.trim(); if (!kw) return;
-    ext.append(h('span', { class: 'muted' }, `「${kw}」をネットで調べる`), h('button', { class: 'btn small', type: 'button', onclick: () => openTab(googleUrl(speciesQuery(kw))) }, icon('search', 16), 'Google検索'), h('button', { class: 'btn small', type: 'button', onclick: () => openAiSearch(kw, toast) }, icon('sparkle', 16), 'AIモード'), h('a', { class: 'btn small primary', href: `#/plants/new?name=${encodeURIComponent(kw)}` }, icon('plus', 16), 'この名前で登録'));
+    ext.append(h('span', { class: 'muted' }, `「${kw}」をネットで調べる`), envToggle(), h('button', { class: 'btn small', type: 'button', onclick: () => openTab(googleUrl(speciesQuery(kw))) }, icon('search', 16), 'Google検索'), h('button', { class: 'btn small', type: 'button', onclick: () => openAiSearch(kw, toast) }, icon('sparkle', 16), 'AIモード'), h('a', { class: 'btn small primary', href: `#/plants/new?name=${encodeURIComponent(kw)}` }, icon('plus', 16), 'この名前で登録'));
   };
   const drawChips = () => {
     chipRow.innerHTML = '';
     const mk = (key, val, label) => h('button', { class: 'chip-btn' + (f[key] === val ? ' on' : ''), type: 'button', onclick: () => { f[key] = f[key] === val && val !== '' ? '' : val; drawChips(); draw(); } }, label);
-    chipRow.append(mk('st', '', 'すべて'), STATUSES.map((s) => mk('st', s, s)), h('span', { class: 'sep' }), mk('loc', 'outdoor', '屋外'), mk('loc', 'indoor', '室内'));
+    chipRow.append(mk('st', '', 'すべて'), STATUSES.map((s) => mk('st', s, s)));
   };
   const draw = () => {
     grid.innerHTML = ''; drawExt();
@@ -39,7 +58,7 @@ export async function renderList(root) {
     const list = ctx.plants.filter((p) => {
       const s = ctx.sp[p.speciesId] || {};
       if (f.st && p.status !== f.st) return false;
-      if (f.loc && (p.location === 'indoor' ? 'indoor' : 'outdoor') !== f.loc) return false;
+      if (f.loc && p.location !== f.loc) return false;
       if (!kw) return true;
       return [p.nickname, s.commonName, s.sciName, s.origin, p.notes].join(' ').toLowerCase().includes(kw);
     });
@@ -54,7 +73,9 @@ export async function renderList(root) {
   };
   q.addEventListener('input', draw);
   root.append(h('div', { class: 'page-head' }, h('h1', null, 'ライブラリー'), h('span', { class: 'count' }, `${ctx.plants.length}株 / ${ctx.species.length}種`)),
-    h('div', { class: 'searchbar' }, q), ext, chipRow, grid,
+    h('div', { class: 'searchbar' }, q), ext,
+    h('label', { class: 'loc-filter' }, h('span', null, '栽培場所'), (() => { const sel = h('select', { 'aria-label': '栽培場所で絞り込み' }, h('option', { value: '' }, 'すべて'), LOCS.map(([k, l]) => h('option', { value: k }, l))); sel.addEventListener('change', () => { f.loc = sel.value; draw(); }); return sel; })()),
+    chipRow, grid,
     h('a', { class: 'fab', href: '#/plants/new', 'aria-label': '植物を新規登録' }, icon('plus', 28)));
   drawChips(); draw();
 }
@@ -99,7 +120,7 @@ export async function renderDetail(root, id) {
         row('原産地・生息地', s.origin), row('適温', s.tempOpt), row('最低〜最高温度', [s.tempMin, s.tempMax].some((x) => x !== '' && x != null) ? `${s.tempMin ?? '—'}℃ 〜 ${s.tempMax ?? '—'}℃` : ''),
         row('湿度', s.humidity), row('日照', s.light), row('水分条件', s.moisture),
         row('購入時期', p.purchaseDate ? fmtDate(p.purchaseDate) : p.purchaseYear ? `${p.purchaseYear}年 ${p.purchaseSeason || ''}` : ''), row('所有期間', start ? lifespanText(start, C.today()) : ''),
-        row('購入価格', p.price ? `¥${Number(p.price).toLocaleString()}` : ''), row('購入先', p.shop), row('状態メモ', p.statusNote), row('備考', p.notes))),
+        row('栽培場所', locLabel(p.location)), row('購入価格', p.price ? `¥${Number(p.price).toLocaleString()}` : ''), row('購入先', p.shop), row('状態メモ', p.statusNote), row('備考', p.notes))),
       h('div', { class: 'card' }, h('h2', null, '温度設定(温度警告に使用)'), h('dl', null, row('屋外管理の最低温度', temp(p.outdoorMin)), row('室内取り込み目安', temp(p.indoorTemp)), row('高温注意温度', temp(p.highTemp)))),
       h('div', { class: 'card danger-zone' }, h('h2', null, '植物の終了'),
         h('p', { class: 'muted' }, '枯れてしまった場合は「削除」ではなくメモリアルへ移動すると、記録として残せます。'),
@@ -110,7 +131,7 @@ export async function renderDetail(root, id) {
           } }, '完全に削除'))));
     else panel.append(
       h('div', { class: 'card' }, h('div', { class: 'row between' }, h('h2', null, '植え替え・用土履歴'), h('button', { class: 'btn small', onclick: () => repotModal(p, null, reload) }, '＋ 記録')),
-        repots.length ? repots.map((r) => h('div', { class: 'log' }, h('strong', null, fmtDate(r.date)), ' ', h('span', null, r.recipeName || '配合記録なし'), h('div', { class: 'muted' }, (r.mix || []).map((m) => `${m.material} ${m.pct}%`).join(' / ')), r.potSize ? h('div', { class: 'muted' }, '鉢: ' + r.potSize) : null, r.note ? h('div', null, r.note) : null, r.photo ? h('img', { class: 'thumb', src: r.photo, alt: '' }) : null)) : h('p', { class: 'muted' }, '記録なし')),
+        repots.length ? repots.map((r) => h('div', { class: 'log' }, h('strong', null, fmtDate(r.date)), ' ', h('span', null, r.recipeName || '配合記録なし'), h('div', { class: 'muted' }, mixLine(r.mix)), r.potSize ? h('div', { class: 'muted' }, '鉢: ' + r.potSize) : null, r.note ? h('div', null, r.note) : null, r.photo ? h('img', { class: 'thumb', src: r.photo, alt: '' }) : null)) : h('p', { class: 'muted' }, '記録なし')),
       h('div', { class: 'card' }, h('h2', null, `実施履歴(${logs.length}件)`),
         logs.length ? logs.slice(0, 60).map((l) => h('div', { class: 'log row between' }, h('div', null, h('strong', null, `${fmtDate(l.date)} ${l.time || ''}`), ' ', h('span', { class: 'kind ' + l.kind }, icon(l.kind === 'water' ? 'drop' : 'flask', 14), l.kind === 'water' ? '水やり' : '肥料'), l.dormant ? h('span', { class: 'badge st-dorm' }, '休眠期') : null,
           h('div', { class: 'muted' }, [l.method, l.amount, l.fertType, l.dilution].filter(Boolean).join(' / ')), l.note ? h('div', null, l.note) : null),
@@ -125,10 +146,10 @@ export async function renderDetail(root, id) {
       h('a', { class: 'fl-btn right', href: `#/plants/${id}/edit`, 'aria-label': '編集' }, icon('edit', 20))),
     h('div', { class: 'd-sheet' },
       h('h1', null, ctx.names[p.id]), h('div', { class: 'd-sub' }, s.commonName && s.commonName !== ctx.names[p.id] ? s.commonName + ' ・ ' : '', h('i', null, s.sciName || '')),
-      h('div', { class: 'row gap wrap mt' }, statusBadge(p.status), h('span', { class: 'badge' }, p.location === 'indoor' ? '室内管理' : '屋外管理')),
+      h('div', { class: 'row gap wrap mt' }, h('button', { class: 'status-btn', type: 'button', 'aria-label': '状態を変更', onclick: () => statusModal(p, reload) }, statusBadge(p.status), h('span', { class: 'chg' }, '変更'))),
       h('div', { class: 'qas' },
         qa('drop', '水やり', () => careModal(p, 'water', reload), 'water'), qa('flask', '肥料', () => careModal(p, 'fert', reload), 'fert'),
-        qa(dorm ? 'sun' : 'snow', dorm ? '成長期へ' : '休眠期へ', async () => { p.status = dorm ? '成長中' : '休眠中'; await db.put('plants', p); toast(dorm ? '成長期(通常設定)に戻しました' : '休眠期モードにしました'); reload(); }, 'dorm'),
+        qa(dorm ? 'sun' : 'snow', dorm ? '休眠を解除' : '休眠期へ', async () => { if (dorm) { p.status = p.prevStatus && p.prevStatus !== '休眠中' ? p.prevStatus : '育成中'; } else { p.prevStatus = p.status; p.status = '休眠中'; } await db.put('plants', p); toast(dorm ? `「${p.status}」に戻しました(通常の水やり設定)` : '休眠期モードにしました'); reload(); }, 'dorm'),
         qa('pot', '植え替え', () => repotModal(p, null, reload), 'pot')),
       seg, panel));
   drawPanel();
@@ -145,7 +166,7 @@ export async function renderForm(root, id, params) {
   const ctx = await loadCtx();
   const editing = id ? ctx.plants.find((x) => x.id === id) : null;
   if (id && !editing) { root.append(empty('i_warn', '植物が見つかりません')); return; }
-  const p = editing || { status: '成長中', location: 'outdoor', water: { last: C.today() }, fert: { stopInDormant: true, last: '' } };
+  const p = editing || { status: '育成中', water: { last: C.today() }, fert: { stopInDormant: true, last: '' } };
   let sp = ctx.sp[p.speciesId] || { cycle: {}, commonName: (!editing && params && params.get('name')) || '' };
   const gcfg = await geminiConfig();
   const photo = photoInput(p.photo);
@@ -200,6 +221,7 @@ export async function renderForm(root, id, params) {
   const lookup = h('div', { class: 'lookup' }, h('strong', null, 'ネットで調べる'),
     h('p', { class: 'muted' }, '植物名を入力して、次の項目を調べられます。'),
     h('div', { class: 'chips research' }, RESEARCH_ITEMS.map((x) => h('span', { class: 'chip-s' }, x))),
+    h('div', { class: 'field env-field' }, h('span', { class: 'lbl' }, '栽培環境(AI検索の前提)'), envToggle()),
     h('div', { class: 'row gap wrap' },
       h('button', { class: 'btn small', type: 'button', onclick: () => { const n = needName(); if (n) openTab(googleUrl(speciesQuery(n))); } }, icon('search', 16), 'Google検索'),
       h('button', { class: 'btn small', type: 'button', onclick: () => { const n = needName(); if (n) openAiSearch(n, toast); } }, icon('sparkle', 16), 'Google AIモード'),
@@ -211,7 +233,8 @@ export async function renderForm(root, id, params) {
     sec('② 個体情報', true,
       field('個体の呼び名(任意)', v('nickname', p.nickname, 'text', { placeholder: '例: 玄関の子 / ①' }), '未入力なら流通名が表示されます'),
       field('写真', photo.el), h('p', { class: 'muted' }, '写真が無い場合は、下のイラストを代わりに使えます'), spriteGrid,
-      h('div', { class: 'grid2' }, field('管理場所', h('select', { name: 'location' }, opt('outdoor', '屋外', p.location), opt('indoor', '室内', p.location))), field('現在の状態', h('select', { name: 'status' }, STATUSES.map((s) => opt(s, s, p.status))))),
+      field('栽培場所', h('select', { name: 'location' }, h('option', { value: '' }, '未設定'), LOCS.map(([k, l]) => opt(k, l, p.location)))),
+      field('現在の状態', h('select', { name: 'status' }, STATUSES.map((s) => opt(s, s, p.status))), '育成中=通常 / 成長中=成長期 / 休眠中=休眠期(休眠中にすると休眠期の水やり設定が使われます)'),
       field('状態メモ', v('statusNote', p.statusNote, 'text', { placeholder: '療養中の理由など' }))),
     sec('③ 購入情報', false,
       h('div', { class: 'grid3' }, field('購入年', v('purchaseYear', p.purchaseYear, 'number', { min: 1990, max: 2100, placeholder: '2026' })), field('購入季節', h('select', { name: 'purchaseSeason' }, opt('', '不明', p.purchaseSeason), ['春', '夏', '秋', '冬'].map((x) => opt(x, x, p.purchaseSeason)))), field('購入日(分かれば)', v('purchaseDate', p.purchaseDate, 'date'))),
@@ -242,7 +265,7 @@ export async function renderForm(root, id, params) {
     const temps = { outdoorMin: nn('outdoorMin'), indoorTemp: nn('indoorTemp'), highTemp: nn('highTemp') };
     species.defaults = { water: { interval: water.interval, amount: water.amount, dormantInterval: water.dormantInterval, dormantAmount: water.dormantAmount }, fert: { interval: fert.interval, type: fert.type, dilution: fert.dilution, amount: fert.amount }, temps };
     await db.put('species', species);
-    const plant = { ...(editing || {}), id: editing ? editing.id : uid(), speciesId: species.id, nickname, photo: photo.value, sprite: spriteSel, location: g('location'), status: g('status'), statusNote: g('statusNote'),
+    const plant = { ...(editing || {}), id: editing ? editing.id : uid(), speciesId: species.id, nickname, photo: photo.value, sprite: spriteSel, status: g('status'), location: g('location'), statusNote: g('statusNote'),
       purchaseYear: nn('purchaseYear'), purchaseSeason: g('purchaseSeason'), purchaseDate: g('purchaseDate'), price: nn('price'), shop: g('shop'), notes: g('notes'), ...temps, water, fert, createdAt: editing ? editing.createdAt : Date.now() };
     await db.put('plants', plant);
     toast(editing ? '保存しました' : '登録しました'); location.hash = `#/plants/${plant.id}`;

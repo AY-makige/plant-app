@@ -60,7 +60,7 @@
     margin = num(margin) ?? 3;
     for (const p of plants) {
       const outdoorMin = num(p.outdoorMin), indoor = num(p.indoorTemp), high = num(p.highTemp);
-      if (p.location !== 'indoor') {
+      {
         const rank = { urgent: 3, warning: 2, caution: 1 };
         let best = null;
         for (const d of daily) {

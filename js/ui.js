@@ -68,8 +68,8 @@ export function confirmBox(message, okLabel = 'OK', danger = false) {
     modal('確認', (b, close) => {
       b.append(h('p', { class: 'pre' }, message),
         h('div', { class: 'btn-row' },
-          h('button', { class: 'btn ghost', type: 'button', onclick: () => { close(); res(false); } }, 'キャンセル'),
-          h('button', { class: 'btn ' + (danger ? 'danger' : 'primary'), type: 'button', onclick: () => { close(); res(true); } }, okLabel)));
+          h('button', { class: 'btn ghost', type: 'button', onclick: () => { res(false); close(); } }, 'キャンセル'),
+          h('button', { class: 'btn ' + (danger ? 'danger' : 'primary'), type: 'button', onclick: () => { res(true); close(); } }, okLabel)));
     }, { onClose: () => res(false) });
   });
 }
@@ -164,3 +164,15 @@ export function icon(name, size = 22, cls = '') {
   return h('span', { class: 'ico ' + cls, html: `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>` });
 }
 export const graveImg = (cls = '') => h('img', { src: 'assets/grave.svg', alt: '洋風の墓石', class: 'grave-art ' + cls });
+
+/* ── 用土の配合は「比率(部)」で扱う: 例 鹿沼土 3 : 軽石 2 : パーライト 2 ──
+   旧データ(割合%)は最簡整数比に換算して表示する */
+const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+export function normalizeMix(mix) {
+  const src = mix || [];
+  const arr = src.map((m) => ({ material: m.material, parts: m.parts != null ? Number(m.parts) : Number(m.pct) || 0 })).filter((m) => m.parts > 0);
+  if (arr.length && src.some((m) => m.parts == null)) { const g = arr.reduce((a, m) => gcd(a, Math.round(m.parts)), 0) || 1; arr.forEach((m) => { m.parts = Math.round(m.parts) / g; }); }
+  return arr;
+}
+export const ratioText = (mix) => normalizeMix(mix).map((m) => m.parts).join(' : ');
+export const mixLine = (mix) => normalizeMix(mix).map((m) => `${m.material} ${m.parts}`).join(' : ');

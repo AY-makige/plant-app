@@ -1,5 +1,5 @@
 // memorial.js — 枯死した植物の記録・メモリアル
-import { h, sprite, icon, graveImg, empty, field, modal, confirmBox, toast, photoInput, fmtDate, ownStart, lifespanText, C } from './ui.js';
+import { h, sprite, icon, graveImg, mixLine, empty, field, modal, confirmBox, toast, photoInput, fmtDate, ownStart, lifespanText, C } from './ui.js';
 import { db } from './db.js';
 import { buryPlant, reviveGrave, loadCtx } from './data.js';
 
@@ -7,7 +7,6 @@ export const CAUSES = ['水切れ', '根腐れ', '高温障害', '低温障害',
 
 function envSummary(p, s) {
   const bits = [];
-  bits.push(p.location === 'indoor' ? '管理場所: 室内' : '管理場所: 屋外');
   if (s) { if (s.light) bits.push('日照: ' + s.light); if (s.humidity) bits.push('湿度: ' + s.humidity); if (s.moisture) bits.push('水分: ' + s.moisture); }
   const w = p.water || {}; if (w.interval) bits.push(`水やり ${w.interval}日ごと${w.amount ? '(' + w.amount + ')' : ''}`);
   const f = p.fert || {}; if (f.interval) bits.push(`施肥 ${f.interval}日ごと${f.type ? '(' + f.type + (f.dilution ? ' ' + f.dilution : '') + ')' : ''}`);
@@ -32,8 +31,9 @@ export function graveForm(plant, species, names, onDone) {
         h('button', { class: 'btn primary', type: 'button', onclick: async () => {
           if (!date.value) return toast('枯死日を入力してください');
           const causes = rows.filter((r) => r.chk.checked).map((r) => ({ cause: r.c, certainty: r.cert.value }));
-          await buryPlant(plant, species, { deathDate: date.value, photo: photo.value, causes, causeNote: causeNote.value, env: env.value, notes: notes.value }, names);
-          close(); toast('メモリアルに移動しました'); onDone && onDone();
+          const grave = await buryPlant(plant, species, { deathDate: date.value, photo: photo.value, causes, causeNote: causeNote.value, env: env.value, notes: notes.value }, names);
+          close(); onDone && onDone();
+          toast('メモリアルに移動しました', 8000, { label: '取り消す', fn: async () => { const p2 = await reviveGrave(grave); toast('所持植物に戻しました'); location.hash = `#/plants/${p2.id}`; } });
         } }, 'メモリアルに移す')));
   }, { wide: true });
 }
@@ -62,8 +62,8 @@ export async function renderGrave(root, id) {
     h('div', { class: 'card' }, h('h2', null, '記録'), h('dl', null,
       row('所有開始', start ? (start.approx ? `約 ${g.plant.purchaseYear}年 ${g.plant.purchaseSeason || ''}` : fmtDate(start.date)) : ''), row('枯死日', fmtDate(g.deathDate)), row('所有期間(享年)', span(g)),
       row('原因(確定=確定情報 / 推測)', g.causes.length ? g.causes.map((c) => `${c.cause}(${c.certainty})`).join('、') : '未入力'), row('原因メモ', g.causeNote), row('当時の育成環境', g.env), row('備考・反省点', g.notes))),
-    h('div', { class: 'card' }, h('h2', null, '最後の管理記録'), (g.lastCare || []).length ? g.lastCare.map((l) => h('div', { class: 'log' }, h('strong', null, fmtDate(l.date)), ' ', h('span', { class: 'badge' }, l.kind === 'water' ? '水やり' : '肥料'), h('div', { class: 'muted' }, [l.method, l.amount, l.fertType, l.dilution].filter(Boolean).join(' / ')))) : h('p', { class: 'muted' }, '記録なし'),
-      (g.repots || []).length ? [h('h3', null, '最後の植え替え'), g.repots.slice(0, 1).map((r) => h('div', { class: 'log' }, fmtDate(r.date) + ' ' + (r.recipeName || ''), h('div', { class: 'muted' }, (r.mix || []).map((m) => `${m.material} ${m.pct}%`).join(' / '))))] : null),
+    h('div', { class: 'card' }, h('h2', null, '最後の管理記録'), (g.lastCare || []).length ? g.lastCare.slice(0, 10).map((l) => h('div', { class: 'log' }, h('strong', null, fmtDate(l.date)), ' ', h('span', { class: 'badge' }, l.kind === 'water' ? '水やり' : '肥料'), h('div', { class: 'muted' }, [l.method, l.amount, l.fertType, l.dilution].filter(Boolean).join(' / ')))) : h('p', { class: 'muted' }, '記録なし'),
+      (g.repots || []).length ? [h('h3', null, '最後の植え替え'), g.repots.slice(0, 1).map((r) => h('div', { class: 'log' }, fmtDate(r.date) + ' ' + (r.recipeName || ''), h('div', { class: 'muted' }, mixLine(r.mix))))] : null),
     h('div', { class: 'card danger-zone row gap wrap' },
       h('button', { class: 'btn', onclick: async () => { if (await confirmBox('所持植物の一覧に戻します(状態は「療養中」になります)。', '戻す')) { const p = await reviveGrave(g); toast('所持植物に戻しました'); location.hash = `#/plants/${p.id}`; } } }, '所持植物に戻す(誤操作用)'),
       h('button', { class: 'btn danger', onclick: async () => { if (await confirmBox('この記録を完全に削除します。元に戻せません。', '削除', true)) { await db.del('graves', g.id); location.hash = '#/memorial'; } } }, '記録を削除')));

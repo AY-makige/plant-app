@@ -49,7 +49,7 @@ export async function buryPlant(plant, species, info, names) {
   const repots = (await db.byPlant('repots', plant.id)).sort((a, b) => b.date.localeCompare(a.date));
   const grave = {
     id: uid(), name: names[plant.id], plant, species: species || null, photo: info.photo || plant.photo || '', sprite: plant.sprite || '',
-    deathDate: info.deathDate, causes: info.causes, causeNote: info.causeNote, env: info.env, lastCare: logs.slice(0, 10), repots: repots.slice(0, 5), notes: info.notes, createdAt: Date.now(),
+    deathDate: info.deathDate, causes: info.causes, causeNote: info.causeNote, env: info.env, lastCare: logs, repots, notes: info.notes, createdAt: Date.now(),
   };
   await db.put('graves', grave);
   for (const l of logs) await db.del('logs', l.id);
@@ -60,7 +60,7 @@ export async function buryPlant(plant, species, info, names) {
 
 /** メモリアルから所持植物へ戻す(誤操作用) */
 export async function reviveGrave(grave) {
-  const plant = { ...grave.plant, status: '療養中' };
+  const plant = { ...grave.plant };
   await db.put('plants', plant);
   if (grave.species && !(await db.get('species', grave.species.id))) await db.put('species', grave.species);
   for (const l of grave.lastCare || []) await db.put('logs', l);
