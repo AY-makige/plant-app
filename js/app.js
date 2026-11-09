@@ -9,6 +9,7 @@ import { renderSoil } from './soil.js';
 import { renderMemorial, renderGrave } from './memorial.js';
 import { renderSettings } from './settings.js';
 import * as N from './notify.js';
+import { maybeOfferGuide } from './guide.js';
 import { applyTheme, toggleMode, resolvedMode } from './theme.js';
 
 const NAV = [['home', 'ホーム', 'home'], ['plants', 'ライブラリー', 'plants'], ['tasks', '水やり', 'drop'], ['calendar', 'カレンダー', 'calendar'], ['soil', '用土', 'soil'], ['memorial', 'メモリアル', 'grave']];
@@ -71,6 +72,7 @@ async function init() {
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js', { scope: './' }).catch((e) => console.warn('SW登録失敗', e));
   }
+  setTimeout(maybeOfferGuide, 1200);
   const check = () => N.checkAndNotify().catch(() => 0);
   check(); document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
   setInterval(check, 5 * 60000);

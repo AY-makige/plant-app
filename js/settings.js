@@ -5,6 +5,7 @@ import { geocode } from './weather.js';
 import * as N from './notify.js';
 import { getTheme, setMode, setStyle } from './theme.js';
 import { DEFAULT_MODEL, geminiLookup, AI_PRESETS, getAiConfig, setAiConfig, openAiSearch, buildAiUrl } from './search.js';
+import { downloadGuide, guideAvailable } from './guide.js';
 import { isStandalone, canPrompt, promptInstall, diagnose, appVersion, checkUpdate, clearCacheAndReload } from './pwa.js';
 
 export async function renderSettings(root) {
@@ -154,6 +155,12 @@ export async function renderSettings(root) {
       h('button', { class: 'btn', type: 'button', onclick: async () => { if (await confirmBox('アプリの一時データ(キャッシュ)を削除して最新を取り直します。植物・履歴・用土などのデータは消えません。実行しますか?', '削除して再読み込み')) clearCacheAndReload(); } }, '🧹 キャッシュを消して再読み込み')),
     upMsg,
     h('p', { class: 'muted' }, '表示が古い・画像が出ないときは、まず「更新を確認」、それでも直らなければキャッシュ削除をお試しください。')));
+
+  /* 使い方ガイド(PDF) */
+  const gMsg = h('p', { class: 'muted', role: 'status' }, '');
+  root.append(h('div', { class: 'card' }, h('h2', null, '使い方ガイド'),
+    h('p', { class: 'muted' }, 'はじめての方向けの使い方ガイド(PDF)をダウンロードできます。'),
+    h('button', { class: 'btn primary', type: 'button', onclick: async () => { if (await guideAvailable()) { downloadGuide(); gMsg.textContent = 'ダウンロードを開始しました。'; } else gMsg.textContent = 'ガイドのファイルが見つかりませんでした(公開フォルダにPDFが置かれているか確認してください)。'; } }, '⬇ 使い方ガイド(PDF)をダウンロード'), gMsg));
 
   /* アプリのアイコン(拡大表示) */
   root.append(h('div', { class: 'card' }, h('h2', null, 'アプリのアイコン'),
