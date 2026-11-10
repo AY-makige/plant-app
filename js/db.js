@@ -75,5 +75,14 @@ export async function ensureDefaults() {
     await db.kvSet('settings', { region: null, notify: { enabled: true, time: '08:00', stages: { soon: true, now: true, late: true } }, margin: 3 });
   }
 }
-export const getSettings = () => db.kvGet('settings', { region: null, notify: { enabled: true, time: '08:00', stages: { soon: true, now: true, late: true } }, margin: 3 });
+export const DEFAULT_TEMPS = { outdoorMin: 5, indoorTemp: 10, highTemp: 35 };
+export async function getSettings() {
+  const s = await db.kvGet('settings', { region: null, notify: { enabled: true, time: '08:00', stages: { soon: true, now: true, late: true } }, margin: 3 });
+  if (!s.temps) { // 以前の「株ごとの温度設定」から、いちばん多い値を全体設定として引き継ぐ(無ければ初期値)
+    const plants = await db.all('plants').catch(() => []); const t = { ...DEFAULT_TEMPS };
+    for (const k of Object.keys(t)) { const cnt = new Map(); plants.forEach((p) => { const x = p[k]; if (x !== '' && x != null && !isNaN(Number(x))) cnt.set(Number(x), (cnt.get(Number(x)) || 0) + 1); }); const top = [...cnt.entries()].sort((a, b) => b[1] - a[1])[0]; if (top) t[k] = top[0]; }
+    s.temps = t; await db.kvSet('settings', s);
+  }
+  return s;
+}
 export const saveSettings = (s) => db.kvSet('settings', s);

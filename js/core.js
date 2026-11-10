@@ -54,12 +54,12 @@
   }
 
   /** 温度警告: 週間予報 vs 植物ごとの設定温度 */
-  function computeWarnings(plants, names, daily, margin) {
+  function computeWarnings(plants, names, daily, margin, temps) {
     const out = [];
     if (!daily || !daily.length) return out;
     margin = num(margin) ?? 3;
     for (const p of plants) {
-      const outdoorMin = num(p.outdoorMin), indoor = num(p.indoorTemp), high = num(p.highTemp);
+      const T = temps || {}; const outdoorMin = num(T.outdoorMin), indoor = num(T.indoorTemp), high = num(T.highTemp);
       {
         const rank = { urgent: 3, warning: 2, caution: 1 };
         let best = null;

@@ -1,12 +1,19 @@
 // settings.js — 地域・通知・バックアップ/復元
 import { h, field, opt, toast, confirmBox, modal, C } from './ui.js';
-import { db, getSettings, saveSettings } from './db.js';
+import { db, getSettings, saveSettings, DEFAULT_TEMPS } from './db.js';
 import { geocode } from './weather.js';
 import * as N from './notify.js';
 import { getTheme, setMode, setStyle } from './theme.js';
 import { DEFAULT_MODEL, geminiLookup, AI_PRESETS, getAiConfig, setAiConfig, openAiSearch, buildAiUrl, isAndroid, getExtBrowser, setExtBrowser } from './search.js';
 import { downloadGuide, guideAvailable } from './guide.js';
 import { isStandalone, canPrompt, promptInstall, diagnose, appVersion, checkUpdate, clearCacheAndReload } from './pwa.js';
+
+/** 複数のカードを1枚にまとめる(小見出し付き) */
+function mergeCards(title, parts) {
+  const kids = [h('h2', null, title)];
+  parts.forEach(([sub, card]) => { if (sub) kids.push(h('h3', { class: 'set-sub' }, sub)); [...card.childNodes].forEach((n) => { if (n.nodeName !== 'H2') kids.push(n); }); });
+  return h('div', { class: 'card' }, kids);
+}
 
 export async function renderSettings(root) {
   const s = await getSettings();
@@ -40,7 +47,7 @@ export async function renderSettings(root) {
   const customWrap = h('div', { class: ac.mode === 'custom' ? '' : 'hidden' }, field('カスタムURL(https のみ)', aiCustom));
   const aiSave = () => { setAiConfig({ mode: aiSel.value, custom: aiCustom.value, copy: aiCopy.checked }); customWrap.classList.toggle('hidden', aiSel.value !== 'custom'); aiPrev.textContent = '開くURL: ' + buildAiUrl('サンプル'); };
   [aiSel, aiCustom, aiCopy].forEach((e) => e.addEventListener('change', aiSave));
-  root.append(h('div', { class: 'card' }, h('h2', null, 'AI検索(Google AIモード等)の開き方'),
+  const aiCard = (h('div', { class: 'card' }, h('h2', null, 'AI検索(Google AIモード等)の開き方'),
     h('p', { class: 'muted' }, 'GoogleのAIモードは、検索語つきで開く公式URLが保証されていません。使えなくなった場合は、ここで別の方法に切り替えられます。'),
     field('開き方', aiSel), customWrap,
     h('label', { class: 'check' }, aiCopy, ' 開く前に検索文をクリップボードへコピーする(URLで検索語が反映されない場合に貼り付けられます)'),
@@ -54,12 +61,14 @@ export async function renderSettings(root) {
   const gm = h('input', { type: 'text', value: (s.gemini && s.gemini.model) || DEFAULT_MODEL, placeholder: DEFAULT_MODEL, 'aria-label': 'モデル名' });
   const gOut = h('div', { class: 'ai-out' });
   const gSave = async () => { s.gemini = { key: gk.value.trim(), model: gm.value.trim() || DEFAULT_MODEL }; await saveSettings(s); toast(s.gemini.key ? 'Gemini設定を保存しました' : 'APIキーを削除しました'); };
-  root.append(h('div', { class: 'card' }, h('h2', null, '種類検索のAI連携(Google)'),
+  const gemCard = (h('div', { class: 'card' }, h('h2', null, '種類検索のAI連携(Google)'),
     h('p', { class: 'muted' }, '植物の登録画面にある「Google検索」「Google AIモード」はキー不要で使えます。下の設定をすると、「AIで自動入力」で学名・原産地・適温・成長サイクルなどを自動で入力できます(Google検索で調べた結果をGeminiがまとめます)。'),
     field('Gemini APIキー(任意)', gk, 'Google AI Studio(aistudio.google.com/apikey)で無料で作成できます'), field('モデル名', gm, 'うまく動かない場合は、AI Studioに表示されている最新のモデル名に変更してください'),
     h('div', { class: 'row gap wrap' }, h('button', { class: 'btn small primary', type: 'button', onclick: gSave }, '保存'),
       h('button', { class: 'btn small', type: 'button', onclick: async (e) => { const b = e.currentTarget; await gSave(); b.disabled = true; gOut.innerHTML = ''; gOut.append(h('p', { class: 'muted' }, 'テスト中…')); try { const r = await geminiLookup('ハエトリソウ'); gOut.innerHTML = ''; gOut.append(h('div', { class: 'warn caution' }, `接続OK: ${r.data.sciName || '取得できました'}`)); } catch (err) { gOut.innerHTML = ''; gOut.append(h('div', { class: 'warn urgent' }, err.message)); } b.disabled = false; } }, '接続テスト')), gOut,
     h('div', { class: 'note' }, 'キーはこの端末のブラウザ内にだけ保存され、AIへの問い合わせ時にGoogleへ送信されます。バックアップファイルには含まれません。他人と共有する端末では登録しないでください。無料枠には回数制限があります。AIの回答は誤りを含むことがあるため、登録前に確認してください。')));
+
+  root.append(mergeCards('ネット検索・AI', [['検索の開き方', aiCard], ['AI自動入力(Gemini)', gemCard]]));
 
   /* 地域 */
   const q = h('input', { type: 'search', placeholder: '市区町村名(例: 世田谷区 / 札幌市 / 那覇市)', 'aria-label': '市区町村名' });
@@ -78,17 +87,24 @@ export async function renderSettings(root) {
     s.region ? h('button', { class: 'btn small ghost', onclick: async () => { s.region = null; await saveSettings(s); rerender(); } }, '登録を解除') : null,
     h('small', { class: 'muted' }, '気象データ: Open-Meteo(無料・APIキー不要)')));
 
-  /* 温度警告 */
+  /* 温度警告(全体設定) */
+  const tmp = { ...DEFAULT_TEMPS, ...(s.temps || {}) };
+  const tIn = (k, step = 0.5) => { const i = h('input', { type: 'number', step, value: tmp[k] }); i.addEventListener('change', async () => { if (i.value === '') { i.value = tmp[k]; return; } s.temps = { ...tmp, ...(s.temps || {}), [k]: Number(i.value) }; await saveSettings(s); toast('保存しました'); }); return i; };
   const margin = h('input', { type: 'number', min: 0, max: 10, step: 0.5, value: s.margin ?? 3 });
   margin.addEventListener('change', async () => { s.margin = Number(margin.value); await saveSettings(s); toast('保存しました'); });
-  root.append(h('div', { class: 'card' }, h('h2', null, '温度警告'), field('「注意」にする余裕温度(℃)', margin, '室内取り込み目安温度 + この値 以下になる予報で「注意」を表示します')));
+  root.append(h('div', { class: 'card' }, h('h2', null, '温度警告(全ての植物に共通)'),
+    h('p', { class: 'muted' }, 'ここで決めた温度を、登録している全ての植物の天気予報の警告に使います。株ごとの設定は不要です。'),
+    field('屋外管理の最低温度(℃)', tIn('outdoorMin'), 'これを下回る予報 = 緊急'),
+    field('室内取り込み目安(℃)', tIn('indoorTemp'), '下回る予報 = 警告 / 接近 = 注意'),
+    field('高温注意温度(℃)', tIn('highTemp'), 'この温度以上になる予報 = 高温'),
+    field('「注意」にする余裕温度(℃)', margin, '室内取り込み目安 + この値 以下になる予報で「注意」を表示します')));
 
   /* 予定の表示名(水やり・液肥) */
   const LB = C.mergeLabels(s.labels);
   const lbIn = {}; const STG = [['soon', '予定日の5日前〜1日前'], ['now', '予定日当日〜2日すぎまで'], ['late', '3日以上すぎたとき']];
   const lbRow = (kind, title) => h('div', { class: 'field' }, h('span', { class: 'lbl' }, title),
     STG.map(([k, d]) => { const inp = h('input', { type: 'text', maxlength: 12, value: LB[kind][k], 'aria-label': `${title} ${d}` }); lbIn[kind + k] = inp; return h('label', { class: 'lb-row' }, h('small', { class: 'muted' }, d), inp); }));
-  root.append(h('div', { class: 'card' }, h('h2', null, '予定の表示名'),
+  const lbCard = (h('div', { class: 'card' }, h('h2', null, '予定の表示名'),
     h('p', { class: 'muted' }, '水やり・液肥の予定が近づいたときや過ぎたときに、カードや通知に表示する言葉です。自由に変えられます。'),
     lbRow('water', '水やり'), lbRow('fert', '液体肥料'),
     h('div', { class: 'row gap wrap' },
@@ -103,7 +119,7 @@ export async function renderSettings(root) {
   const tm = h('input', { type: 'time', value: nc.time.padStart(5, '0'), 'aria-label': '通知する時刻', style: { width: 'auto' } });
   const saveN = async () => { s.notify = { enabled: en.checked, time: tm.value || '08:00', stages: Object.fromEntries(stg.map((x) => [x.k, x.el.checked])) }; await saveSettings(s); toast('通知設定を保存しました'); };
   [en, tm, ...stg.map((x) => x.el)].forEach((e) => e.addEventListener('change', saveN));
-  root.append(h('div', { class: 'card' }, h('h2', null, '通知'),
+  const ntCard = (h('div', { class: 'card' }, h('h2', null, '通知'),
     h('p', null, '通知の許可: ', h('strong', null, { granted: '許可済み', denied: 'ブロック中(ブラウザの設定で変更)', default: '未設定', unsupported: 'このブラウザは非対応' }[perm])),
     perm !== 'granted' && perm !== 'unsupported' && perm !== 'denied' ? h('button', { class: 'btn primary small', onclick: async () => { await N.requestPermission(); rerender(); } }, '通知を許可する') : null,
     perm === 'granted' ? h('button', { class: 'btn small', onclick: () => N.testNotification().catch((e) => toast(e.message)) }, 'テスト通知') : null,
@@ -115,6 +131,8 @@ export async function renderSettings(root) {
       h('label', { class: 'check' }, stg[2].el, ' 予定を過ぎてる(予定日をすぎたとき)'))),
     h('div', { class: 'note' }, 'ℹ アプリを開いたとき・画面に戻ったときに通知を判定します。アプリを閉じたままの通知は、ホーム画面に追加したPWA(Chrome/Android等)の「定期バックグラウンド同期」が使える場合のみ届き、時刻は保証されません。確実な時刻通知にはWeb Pushサーバーが必要です(README参照)。通知を許可しなくても、ホーム画面で予定を確認できます。')));
 
+
+  root.append(mergeCards('水やり・液肥の予定と通知', [['予定の表示名', lbCard], ['通知', ntCard]]));
 
   /* バックアップ */
   const file = h('input', { type: 'file', accept: 'application/json,.json', class: 'hidden', onchange: async (e) => {

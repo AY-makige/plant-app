@@ -140,7 +140,6 @@ export async function renderDetail(root, id) {
         row('湿度', s.humidity), row('日照', s.light), row('水分条件', s.moisture), row('追肥(遅効性肥料)', s.slowFert), row('液肥(ハイポネックス)', s.liquidDilution),
         row('購入時期', p.purchaseDate ? fmtDate(p.purchaseDate) : p.purchaseYear ? `${p.purchaseYear}年 ${p.purchaseSeason || ''}` : ''), row('所有期間', start ? lifespanText(start, C.today()) : ''),
         row('栽培場所', locLabel(p.location)), row('購入価格', p.price ? `¥${Number(p.price).toLocaleString()}` : ''), row('購入先', p.shop), row('状態メモ', p.statusNote), row('備考', p.notes))),
-      h('div', { class: 'card' }, h('h2', null, '温度設定(温度警告に使用)'), h('dl', null, row('屋外管理の最低温度', temp(p.outdoorMin)), row('室内取り込み目安', temp(p.indoorTemp)), row('高温注意温度', temp(p.highTemp)))),
       h('div', { class: 'card danger-zone' }, h('h2', null, '植物の終了'),
         h('p', { class: 'muted' }, '枯れてしまった場合は「削除」ではなくメモリアルへ移動すると、記録として残せます。'),
         h('div', { class: 'row gap wrap' },
@@ -241,8 +240,9 @@ export async function renderForm(root, id, params) {
     sp = ctx.sp[spSelect.value] || { cycle: {} };
     if (form.elements.commonName) form.elements.commonName.value = sp.commonName || ''; // 選んだ種類の流通名を反映
     const nw = speciesFields(); spWrap.replaceWith(nw); spWrap = nw;
-    const d = sp.defaults; // 種類の既定値を個体の設定へ
-    if (d && !editing) { const set = (n, val) => { const el = form.elements[n]; if (el && val != null) el.value = val; }; ['outdoorMin', 'indoorTemp', 'highTemp'].forEach((k) => set(k, (d.temps || {})[k])); set('w_interval', (d.water || {}).interval); set('w_amount', (d.water || {}).amount); set('w_dormantInterval', (d.water || {}).dormantInterval); set('w_dormantAmount', (d.water || {}).dormantAmount); set('f_interval', (d.fert || {}).interval); set('f_type', (d.fert || {}).type); set('f_dilution', (d.fert || {}).dilution); set('f_amount', (d.fert || {}).amount); toast('この種類の前回設定を引き継ぎました'); }
+    let d = sp.defaults; // 種類の既定値を個体の設定へ
+    if (!d) { const sib = (ctx.plants || []).find((x) => x.speciesId === sp.id); if (sib) d = { water: sib.water || {}, fert: sib.fert || {} }; } // 既定値が無い古い種類は、同じ種類の株の設定を引き継ぐ
+    if (d && !editing) { const set = (n, val) => { const el = form.elements[n]; if (el && val != null) el.value = val; }; set('w_interval', (d.water || {}).interval); set('w_amount', (d.water || {}).amount); set('w_dormantInterval', (d.water || {}).dormantInterval); set('w_dormantAmount', (d.water || {}).dormantAmount); set('f_interval', (d.fert || {}).interval); set('f_type', (d.fert || {}).type); set('f_dilution', (d.fert || {}).dilution); set('f_amount', (d.fert || {}).amount); toast('この種類の前回設定を引き継ぎました'); }
   });
 
 
@@ -301,9 +301,20 @@ export async function renderForm(root, id, params) {
   const lastField = (name, label, val, what) => (editing
     ? h('div', { class: 'field' }, h('span', { class: 'lbl' }, label), h('input', { type: 'hidden', name, value: val || '' }), h('div', { class: 'readonly-val row between' }, h('span', null, val ? fmtDate(val) : '未記録'), val ? h('button', { class: 'btn small ghost', type: 'button', onclick: (e) => { e.currentTarget.closest('.field').querySelector('input[type=hidden]').value = ''; e.currentTarget.previousSibling.textContent = '未記録(保存すると消えます)'; e.currentTarget.remove(); } }, '日付を消す') : null), h('small', { class: 'muted' }, `${what}をした日は、詳細画面の記録ボタンから日付を指定して記録します`))
     : field(label, v(name, val, 'date')));
+  const sugg = h('div', { class: 'sp-suggest hidden' });
+  const normN = (x) => String(x || '').replace(/[\s\u3000]/g, '').toLowerCase();
+  const checkSugg = () => {
+    sugg.replaceChildren(); sugg.classList.add('hidden'); if (editing || spSelect.value) return;
+    const q = normN(form.elements.commonName && form.elements.commonName.value); if (!q) return;
+    const m = ctx.species.filter((x) => { const n = normN(x.commonName); return n === q || (q.length >= 2 && (n.includes(q) || q.includes(n))); }).slice(0, 4);
+    if (!m.length) return; sugg.classList.remove('hidden');
+    sugg.append(h('p', { class: 'muted' }, '登録済みの種類があります。同じ種類の別個体なら選ぶと、種類の情報や水やり・液肥の設定を引き継げます。'),
+      h('div', { class: 'row gap wrap' }, m.map((x) => h('button', { type: 'button', class: 'btn small', onclick: () => { spSelect.value = x.id; spSelect.dispatchEvent(new Event('change')); checkSugg(); } }, `「${x.commonName}」を使う`))));
+  };
+  nameFields.addEventListener('input', checkSugg);
   const sec = (title, open, ...kids) => h('details', { class: 'card sec', open }, h('summary', null, title), h('div', { class: 'sec-body' }, kids));
   form.append(
-    sec('① 種類・植物情報', true, nameFields, lookup, field('登録済みの種類から選ぶ', spSelect, '同じ種類を複数持っている場合は、ここで既存の種類を選ぶと別個体として登録できます'), spWrap),
+    sec('① 種類・植物情報', true, nameFields, sugg, lookup, field('登録済みの種類から選ぶ', spSelect, '同じ種類を複数持っている場合は、ここで既存の種類を選ぶと別個体として登録できます'), spWrap),
     sec('② 個体情報', true,
       field('写真', photo.el), h('p', { class: 'muted' }, '写真が無い場合は、下のイラストを代わりに使えます'), spriteGrid,
       field('栽培場所', h('select', { name: 'location' }, h('option', { value: '' }, '未設定'), LOCS.map(([k, l]) => opt(k, l, p.location)))),
@@ -312,13 +323,11 @@ export async function renderForm(root, id, params) {
     sec('③ 購入情報', false,
       h('div', { class: 'grid3' }, field('購入年', v('purchaseYear', p.purchaseYear, 'number', { min: 1990, max: 2100, placeholder: '2026' })), field('購入季節', h('select', { name: 'purchaseSeason' }, opt('', '不明', p.purchaseSeason), ['春', '夏', '秋', '冬'].map((x) => opt(x, x, p.purchaseSeason)))), field('購入日(分かれば)', v('purchaseDate', p.purchaseDate, 'date'))),
       h('div', { class: 'grid2' }, field('購入価格(円)', v('price', p.price, 'number', { min: 0 })), field('購入先', v('shop', p.shop))), field('備考', h('textarea', { name: 'notes', rows: 2 }, p.notes || ''))),
-    sec('④ 温度設定(温度警告に使用)', false, h('div', { class: 'grid3' },
-      field('屋外管理の最低温度(℃)', v('outdoorMin', p.outdoorMin, 'number', { step: '0.5' }), 'これを下回る予報=緊急'), field('室内取り込み目安(℃)', v('indoorTemp', p.indoorTemp, 'number', { step: '0.5' }), '下回る=警告 / 接近=注意'), field('高温注意温度(℃)', v('highTemp', p.highTemp, 'number', { step: '0.5' })))),
-    sec('⑤ 水やり設定', true,
+    sec('④ 水やり設定', true,
       h('div', { class: 'grid2' }, field('水やり間隔(日)', v('w_interval', w.interval, 'number', { min: 1, placeholder: '例: 3' })), lastField('w_last', '最終水やり日', w.last, '水やり')),
       field('水やり量・方法', v('w_amount', w.amount, 'text', { placeholder: '例: 腰水で常時湿らせる' })),
       h('div', { class: 'sub' }, h('strong', null, '休眠期専用の設定'), h('div', { class: 'grid2' }, field('休眠期の間隔(日)', v('w_dormantInterval', w.dormantInterval, 'number', { min: 0, placeholder: '空欄=通常と同じ / 0=停止' }), '0 を入れると休眠期は水やり通知を停止'), field('休眠期の量・方法', v('w_dormantAmount', w.dormantAmount, 'text', { placeholder: '例: 軽く湿らせる程度' }))))),
-    sec('⑥ 液体肥料設定', false,
+    sec('⑤ 液体肥料設定', false,
       h('div', { class: 'grid2' }, field('施肥間隔(日)', v('f_interval', f.interval, 'number', { min: 1, placeholder: '例: 14' })), lastField('f_last', '最終施肥日', f.last, '液体肥料')),
       field('肥料の種類', v('f_type', f.type)), h('div', { class: 'grid2' }, field('希釈倍率', v('f_dilution', f.dilution, 'text', { placeholder: '例: 2000倍' })), field('使用量', v('f_amount', f.amount))),
       h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'f_stop', checked: f.stopInDormant !== false }), ' 休眠期は施肥を停止する(通知も止まります)')),
@@ -340,11 +349,10 @@ export async function renderForm(root, id, params) {
     Object.assign(species, { commonName: commonName || nickname, sciName: g('sciName'), origin: g('origin'), tempOpt: g('tempOpt'), tempMin: nn('tempMin'), tempMax: nn('tempMax'), humidity: g('humidity'), light: g('light'), moisture: g('moisture'), slowFert: g('slowFert'), liquidDilution: g('liquidDilution'), cycle });
     const water = { interval: nn('w_interval'), last: g('w_last'), amount: g('w_amount'), dormantInterval: nn('w_dormantInterval'), dormantAmount: g('w_dormantAmount') };
     const fert = { interval: nn('f_interval'), last: g('f_last'), type: g('f_type'), dilution: g('f_dilution'), amount: g('f_amount'), stopInDormant: fd.has('f_stop') };
-    const temps = { outdoorMin: nn('outdoorMin'), indoorTemp: nn('indoorTemp'), highTemp: nn('highTemp') };
-    species.defaults = { water: { interval: water.interval, amount: water.amount, dormantInterval: water.dormantInterval, dormantAmount: water.dormantAmount }, fert: { interval: fert.interval, type: fert.type, dilution: fert.dilution, amount: fert.amount }, temps };
+    species.defaults = { water: { interval: water.interval, amount: water.amount, dormantInterval: water.dormantInterval, dormantAmount: water.dormantAmount }, fert: { interval: fert.interval, type: fert.type, dilution: fert.dilution, amount: fert.amount } };
     await db.put('species', species);
     const plant = { ...(editing || {}), id: editing ? editing.id : uid(), speciesId: species.id, nickname, photo: photo.value, sprite: spriteSel, status: g('status'), location: g('location'), statusNote: g('statusNote'),
-      purchaseYear: nn('purchaseYear'), purchaseSeason: g('purchaseSeason'), purchaseDate: g('purchaseDate'), price: nn('price'), shop: g('shop'), notes: g('notes'), ...temps, water, fert, createdAt: editing ? editing.createdAt : Date.now() };
+      purchaseYear: nn('purchaseYear'), purchaseSeason: g('purchaseSeason'), purchaseDate: g('purchaseDate'), price: nn('price'), shop: g('shop'), notes: g('notes'), water, fert, createdAt: editing ? editing.createdAt : Date.now() };
     await db.put('plants', plant);
     toast(editing ? '保存しました' : '登録しました'); location.hash = `#/plants/${plant.id}`;
   }

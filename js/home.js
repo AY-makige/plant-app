@@ -57,7 +57,7 @@ export async function renderHome(root) {
     wx.append(h('p', { class: 'muted' }, '天気を取得中…'));
     fetchForecast(settings.region).then((f) => {
       drawWeather(wx, f, settings, rerender);
-      const ws = C.computeWarnings(ctx.plants, ctx.names, f.daily, settings.margin);
+      const ws = C.computeWarnings(ctx.plants, ctx.names, f.daily, settings.margin, settings.temps);
       warnStat.querySelector('b').textContent = ws.length; if (ws.length) warnStat.classList.add('alert');
       drawAlerts(alerts, ws);
     }).catch((e) => {
