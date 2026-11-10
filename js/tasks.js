@@ -55,7 +55,7 @@ export async function renderTasks(root) {
   } else {
     const sub = sessionStorage.getItem('taskSub') === 'today' ? 'today' : 'schedule';
     const label = tab === 'water' ? '水やり' : '液体肥料';
-    body.append(h('div', { class: 'seg task-sub', role: 'tablist' }, [['schedule', 'スケジュール'], ['today', '今日']].map(([k, l]) =>
+    body.append(h('div', { class: 'seg task-sub', role: 'tablist' }, [['schedule', 'スケジュール'], ['today', tab === 'water' ? '今日水やりした植物' : '今日液肥をあげた植物']].map(([k, l]) =>
       h('button', { class: 'seg-b' + (sub === k ? ' on' : ''), type: 'button', role: 'tab', 'aria-selected': sub === k, onclick: () => { sessionStorage.setItem('taskSub', k); rerender(); } }, l))));
     if (sub === 'today') {
       /* 今日: スケジュール(間隔)が決まっていない植物を並べ、チェックしたものを今日実施した記録にする */

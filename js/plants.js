@@ -105,28 +105,13 @@ export async function renderDetail(root, id) {
   const dorm = C.isDormant(p); const start = ownStart(p);
 
   const sched = (kind) => {
-    const n = C.nextDue(p, kind); const cfg = p[kind === 'water' ? 'water' : 'fert'] || {};
-    const label = kind === 'water' ? '水やり' : '液体肥料'; const dl = n.date ? C.diffDays(n.date, C.today()) : null;
-    return h('div', { class: 'card sched' }, h('div', { class: 'row between' }, h('h3', { class: 'kind ' + kind }, icon(kind === 'water' ? 'drop' : 'flask', 18), label), h('div', { class: 'row gap' }, dorm ? h('span', { class: 'badge st-dorm' }, '休眠期設定') : null,
-        h('a', { class: 'icon-btn sm', href: `#/plants/${p.id}/edit`, 'aria-label': `${label}の設定を編集`, title: '編集', onclick: () => { try { sessionStorage.setItem('editFocus', kind); } catch (e) { /* noop */ } } }, icon('edit', 18)))),
-      n.stopped ? h('p', { class: 'muted' }, '休眠期のため停止中') : !n.date ? h('p', { class: 'muted' }, '間隔が未設定です(編集で設定)') :
-        h('div', null, h('div', { class: 'big-date' }, fmtDate(n.date), h('small', null, ` (${relDays(dl, kind)})`)),
-          h('small', { class: 'muted' }, `${n.interval}日ごと / 最終: ${cfg.last ? fmtDate(cfg.last) : '未記録'}`)),
-      kind === 'water' ? h('small', { class: 'muted' }, `量・方法: ${C.effWater(p).amount || '—'}`) : h('small', { class: 'muted' }, `${cfg.type || '—'}${cfg.dilution ? ' / ' + cfg.dilution : ''}${cfg.amount ? ' / ' + cfg.amount : ''}`),
-      cfg.last ? h('button', { class: 'btn small ghost', type: 'button', onclick: () => undoLast(kind, label, cfg) }, `最後の${label}の記録を取り消す`) : null);
-  };
- /** 最後の記録を取り消す(誤って記録した/あげていないとき)。履歴が無く最終日だけ入っている場合は、その日付を消す */
-  const undoLast = async (kind, label, cfg) => {
-    const last = logs.find((l) => l.kind === kind);
-    if (last) {
-      const extra = last.waterLogId ? '\n(液肥と同時に記録した水やりも一緒に取り消されます)' : '';
-      if (!(await confirmBox(`${fmtDate(last.date)}の${label}の記録を取り消します。${extra}\n次回予定日は、残りの記録から計算し直されます。`, '取り消す', true))) return;
-      await deleteLog(last);
-    } else {
-      if (!(await confirmBox(`最終${label}日(${fmtDate(cfg.last)})の入力を消します。`, '消す', true))) return;
-      const cur = await db.get('plants', p.id); cur[kind === 'water' ? 'water' : 'fert'] = { ...(cur[kind === 'water' ? 'water' : 'fert'] || {}), last: '' }; await db.put('plants', cur);
-    }
-    toast('記録を取り消しました'); reload();
+    const eff = kind === 'water' ? C.effWater(p) : C.effFert(p);
+    const title = kind === 'water' ? '水やり間隔' : '液肥の間隔';
+    return h('div', { class: 'card sched' }, h('div', { class: 'row between' }, h('h3', { class: 'kind ' + kind }, icon(kind === 'water' ? 'drop' : 'flask', 18), title), h('div', { class: 'row gap' }, dorm ? h('span', { class: 'badge st-dorm' }, '休眠期設定') : null,
+        h('a', { class: 'icon-btn sm', href: `#/plants/${p.id}/edit`, 'aria-label': `${title}を編集`, title: '編集', onclick: () => { try { sessionStorage.setItem('editFocus', kind); } catch (e) { /* noop */ } } }, icon('edit', 18)))),
+      eff.stopped ? h('div', { class: 'interval-big muted' }, '休眠期のため停止中')
+        : !eff.interval ? h('div', { class: 'interval-big muted' }, '未設定')
+          : h('div', { class: 'interval-big' }, h('b', null, eff.interval), '日に1回'));
   };
   const row = (k, v) => (v || v === 0 ? h('div', { class: 'kv' }, h('dt', null, k), h('dd', null, v)) : null);
   const temp = (v) => (v !== '' && v != null ? `${v}℃` : '未設定');
