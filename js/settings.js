@@ -220,11 +220,16 @@ export async function renderSettings(root) {
       }) }, h('img', { src: 'icons/icon-192.png', alt: '' })),
       h('p', { class: 'muted', style: { margin: 0 } }, 'タップすると大きい画像で見られます。')),
     h('h3', { class: 'set-sub' }, 'ライブラリーの植物から設定(おまけ)'),
-    h('p', { class: 'muted' }, 'ライブラリーに登録した自分の植物の写真を、アプリのアイコンにできます。変更されるのは、この端末のアプリ画面上部・ブラウザのタブ・(iPhoneの)ホーム画面追加時のアイコンです。すでにホーム画面に置いたアイコンは、端末の仕組み上、自動では変わりません。'),
+    h('p', { class: 'muted' }, 'ライブラリーに登録した自分の植物の写真を、アプリのアイコンにできます。アプリ画面上部とブラウザのタブのアイコンはすぐ変わります。ホーム画面のアイコンは、端末が「追加したとき」に画像を保存する仕組みのため、すでに置いてあるアイコンは自動では変わりません。下の手順で追加し直してください。'),
     appIconNow ? h('div', { class: 'row gap', style: { alignItems: 'center' } }, h('img', { src: appIconNow.i192, alt: '', class: 'icon-mine' }), h('div', null, h('strong', null, appIconNow.name || '設定中'), h('div', { class: 'row gap wrap mt' },
       h('a', { class: 'btn small', href: appIconNow.i512, download: 'my-plant-icon.png' }, '画像を保存'),
       h('button', { class: 'btn small ghost', type: 'button', onclick: async () => { await resetAppIcon(); toast('初期のアイコンに戻しました'); rerender(); } }, '初期のアイコンに戻す')))) : null,
-    h('button', { class: 'btn primary', type: 'button', onclick: () => pickIconPlant(rerender) }, appIconNow ? '別の植物から選ぶ' : 'ライブラリーから選ぶ')));
+    h('button', { class: 'btn primary', type: 'button', onclick: () => pickIconPlant(rerender) }, appIconNow ? '別の植物から選ぶ' : 'ライブラリーから選ぶ'),
+    appIconNow ? h('details', { class: 'icon-howto' }, h('summary', null, 'ホーム画面のアイコンに反映する手順'),
+      h('p', { class: 'muted' }, '先に「バックアップ・復元」でバックアップを保存してから行ってください(データはブラウザ内にあります)。'),
+      h('p', null, h('b', null, 'Android(Chrome): '), 'ホーム画面の古いアイコンを長押し→削除(アンインストール)。Chromeでこのアプリを開き直して、メニュー(︙)→「アプリをインストール」または「ホーム画面に追加」。新しいアイコンで追加されます。'),
+      h('p', null, h('b', null, 'iPhone(Safari): '), 'ホーム画面の古いアイコンを削除。Safariでこのアプリを開き直して、共有ボタン→「ホーム画面に追加」。'),
+      h('p', null, h('b', null, 'うまくいかないとき: '), '上の「画像を保存」で画像を保存し、iPhoneなら「ショートカット」アプリの「URLを開く」→「ホーム画面に追加」、Androidならショートカット作成アプリで、保存した画像をアイコンに指定できます。')) : null));
 
   /* 墓石のひとこと(おまけ): 言葉の追加・編集・削除 */
   {
