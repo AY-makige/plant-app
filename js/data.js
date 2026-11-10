@@ -63,26 +63,36 @@ export async function deletePlant(id, withHistory = true) {
 
 /** 枯死 → メモリアルへ移動(通常一覧から除外。履歴はスナップショットとして保持) */
 export async function buryPlant(plant, species, info, names) {
+  const cur = await db.get('plants', plant.id);
+  if (!cur) throw new Error('この植物はすでにメモリアルへ移動済みか、削除されています');
+  if ((await db.all('graves')).some((g) => g.plant && g.plant.id === plant.id)) throw new Error('この植物はすでにメモリアルに登録されています');
+  const start = cur.purchaseDate || '';
+  if (start && info.deathDate && info.deathDate < start) throw new Error('枯死日が購入(入手)日より前になっています');
   const logs = (await db.byPlant('logs', plant.id)).sort((a, b) => b.date.localeCompare(a.date));
   const repots = (await db.byPlant('repots', plant.id)).sort((a, b) => b.date.localeCompare(a.date));
   const grave = {
-    id: uid(), name: names[plant.id], plant, species: species || null, photo: info.photo || plant.photo || '', sprite: plant.sprite || '',
+    id: uid(), name: names[plant.id], plant: cur, species: species || null, photo: info.photo || cur.photo || '', sprite: cur.sprite || '',
     deathDate: info.deathDate, causes: info.causes, causeNote: info.causeNote, env: info.env, lastCare: logs, repots, notes: info.notes, createdAt: Date.now(),
   };
-  await db.put('graves', grave);
-  for (const l of logs) await db.del('logs', l.id);
-  for (const r of repots) await db.del('repots', r.id);
-  await db.del('plants', plant.id);
+  // お墓の作成 + 履歴・植物の削除を1回で行う(途中で失敗しても履歴だけ消える事態を防ぐ)
+  await db.atomic(['graves', 'logs', 'repots', 'plants'], (st) => {
+    st('graves').put(grave);
+    logs.forEach((l) => st('logs').delete(l.id)); repots.forEach((r) => st('repots').delete(r.id));
+    st('plants').delete(plant.id);
+  });
   return grave;
 }
 
-/** メモリアルから所持植物へ戻す(誤操作用) */
+/** メモリアルから所持植物へ戻す(誤操作用)。個体ID・写真・履歴をそのまま復元 */
 export async function reviveGrave(grave) {
+  if (!(await db.get('graves', grave.id))) throw new Error('この記録はすでに戻されたか、削除されています');
+  if (await db.get('plants', grave.plant.id)) throw new Error('同じ植物がすでに所持植物にあります');
   const plant = { ...grave.plant };
-  await db.put('plants', plant);
-  if (grave.species && !(await db.get('species', grave.species.id))) await db.put('species', grave.species);
-  for (const l of grave.lastCare || []) await db.put('logs', l);
-  for (const r of grave.repots || []) await db.put('repots', r);
-  await db.del('graves', grave.id);
+  const needSp = grave.species && !(await db.get('species', grave.species.id));
+  await db.atomic(['plants', 'species', 'logs', 'repots', 'graves'], (st) => {
+    st('plants').put(plant); if (needSp) st('species').put(grave.species);
+    (grave.lastCare || []).forEach((l) => st('logs').put(l)); (grave.repots || []).forEach((r) => st('repots').put(r));
+    st('graves').delete(grave.id);
+  });
   return plant;
 }

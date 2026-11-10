@@ -21,6 +21,35 @@ async function store(name, mode = 'readonly') { const db = await open(); return 
 
 export const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
 
+let importing = false;
+/** バックアップJSONの検証(DBは書き換えない)。問題があれば Error、軽微な不整合は warnings で返す */
+export function validateBackup(data) {
+  const bad = (m) => { throw new Error('バックアップを復元できません: ' + m); };
+  if (!data || typeof data !== 'object' || data.app !== 'plant-keeper') bad('このアプリのバックアップファイルではありません');
+  if (data.version != null && (typeof data.version !== 'number' || data.version > 1)) bad('新しい版のアプリで作られたファイルです(version ' + data.version + ')');
+  if (!data.stores || typeof data.stores !== 'object') bad('データ本体(stores)がありません');
+  const counts = {}; const warnings = [];
+  for (const s of STORES) {
+    const rows = data.stores[s]; if (rows === undefined) continue;
+    if (!Array.isArray(rows)) bad(`「${s}」の形式が正しくありません`);
+    const key = s === 'kv' ? 'key' : 'id';
+    const seen = new Set();
+    rows.forEach((r, i) => {
+      if (!r || typeof r !== 'object' || Array.isArray(r)) bad(`「${s}」の ${i + 1} 件目が正しくありません`);
+      if (typeof r[key] !== 'string' || !r[key]) bad(`「${s}」の ${i + 1} 件目に ${key} がありません`);
+      if (seen.has(r[key])) bad(`「${s}」に重複した ${key} があります`); seen.add(r[key]);
+    });
+    counts[s] = rows.length;
+  }
+  if (!Array.isArray(data.stores.plants) || !Array.isArray(data.stores.species)) bad('植物(plants)または種類(species)のデータがありません');
+  const pids = new Set(data.stores.plants.map((p) => p.id)), sids = new Set(data.stores.species.map((x) => x.id));
+  const orphanLogs = [...(data.stores.logs || []), ...(data.stores.repots || [])].filter((l) => !pids.has(l.plantId)).length;
+  const orphanSp = data.stores.plants.filter((p) => p.speciesId && !sids.has(p.speciesId)).length;
+  if (orphanLogs) warnings.push(`持ち主の植物が見つからない記録が ${orphanLogs} 件あります(そのまま復元します)`);
+  if (orphanSp) warnings.push(`種類が見つからない植物が ${orphanSp} 件あります(そのまま復元します)`);
+  return { counts, warnings };
+}
+
 export const db = {
   async all(name) { return wrap((await store(name)).getAll()); },
   async get(name, id) { return wrap((await store(name)).get(id)); },
@@ -37,18 +66,31 @@ export const db = {
     data.stores.kv = data.stores.kv.map((r) => (r.key === 'settings' && r.value && r.value.gemini ? { ...r, value: { ...r.value, gemini: { ...r.value.gemini, key: '' } } } : r));
     return data;
   },
-  async importAll(data, mode = 'replace') {
-    if (!data || data.app !== 'plant-keeper' || !data.stores) throw new Error('このアプリのバックアップファイルではありません');
+  /** 複数ストアへの書き込みを1つのトランザクションで行う(途中で失敗したら全部取り消し)。fn は同期的に put/delete を発行する */
+  async atomic(names, fn) {
     const d = await open();
-    for (const s of STORES) {
-      const rows = data.stores[s] || [];
-      await new Promise((res, rej) => {
-        const tx = d.transaction(s, 'readwrite'); const os = tx.objectStore(s);
-        if (mode === 'replace') os.clear();
-        rows.forEach((r) => os.put(r));
-        tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+    return new Promise((res, rej) => {
+      const tx = d.transaction(names, 'readwrite'); let out;
+      tx.oncomplete = () => res(out);
+      tx.onerror = () => rej(tx.error || new Error('保存に失敗しました'));
+      tx.onabort = () => rej(tx.error || new Error('保存を中止しました(変更は反映されていません)'));
+      try { out = fn((n) => tx.objectStore(n)); } catch (e) { try { tx.abort(); } catch (e2) { /* noop */ } rej(e); }
+    });
+  },
+  /** バックアップを復元。検証 → 全ストアを1トランザクションで置き換え。失敗時は何も変更されない */
+  async importAll(data, mode = 'replace') {
+    if (importing) throw new Error('別の復元処理が実行中です');
+    const info = validateBackup(data); importing = true;
+    try {
+      await db.atomic(STORES, (st) => {
+        for (const s of STORES) {
+          if (!Array.isArray(data.stores[s])) continue; // ファイルに無いストアは現在のデータを残す
+          const os = st(s); if (mode === 'replace') os.clear();
+          data.stores[s].forEach((r) => os.put(r));
+        }
       });
-    }
+      return info;
+    } finally { importing = false; }
   },
 };
 

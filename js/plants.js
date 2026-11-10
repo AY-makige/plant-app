@@ -336,7 +336,7 @@ export async function renderForm(root, id, params) {
   // 詳細画面の「水やり/液体肥料」の編集ボタンから来たときは、その設定欄を開いて見える位置へ
   try {
     const fk = sessionStorage.getItem('editFocus'); sessionStorage.removeItem('editFocus');
-    if (fk && editing) { const key = fk === 'fert' ? '⑥' : '⑤'; const d = [...form.querySelectorAll('details.sec')].find((x) => (x.querySelector('summary') || {}).textContent.startsWith(key)); if (d) { d.open = true; setTimeout(() => d.scrollIntoView({ block: 'start' }), 150); } }
+    if (fk && editing) { const key = fk === 'fert' ? '⑤' : '④'; const d = [...form.querySelectorAll('details.sec')].find((x) => (x.querySelector('summary') || {}).textContent.startsWith(key)); if (d) { d.open = true; setTimeout(() => d.scrollIntoView({ block: 'start' }), 150); } }
   } catch (e) { /* noop */ }
 
   async function save() {

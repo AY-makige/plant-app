@@ -1,6 +1,6 @@
 // settings.js — 地域・通知・バックアップ/復元
 import { h, field, opt, toast, confirmBox, modal, C } from './ui.js';
-import { db, getSettings, saveSettings, DEFAULT_TEMPS } from './db.js';
+import { db, getSettings, saveSettings, DEFAULT_TEMPS, validateBackup } from './db.js';
 import { geocode } from './weather.js';
 import * as N from './notify.js';
 import { getTheme, setMode, setStyle } from './theme.js';
@@ -50,7 +50,7 @@ export async function renderSettings(root) {
     h('p', null, '状態: ', h('strong', null, isStandalone() ? 'アプリとして起動中' : canPrompt() ? 'インストールできます' : 'ブラウザで表示中')),
     instBtn,
     h('div', { class: 'note' }, h('b', null, 'Android(Chrome): '), '右上のメニュー(︙)→「アプリをインストール」または「ホーム画面に追加」。', h('br'), h('b', null, 'iPhone(Safari): '), '共有ボタン→「ホーム画面に追加」。', h('br'), '出ない場合は下の「診断」で原因を確認してください。'),
-    h('button', { class: 'btn small', onclick: async (e) => { const btn = e.currentTarget; btn.disabled = true; diag.innerHTML = ''; diag.append(h('p', { class: 'muted' }, '診断中…')); const r = await diagnose(); diag.innerHTML = ''; r.forEach((x) => diag.append(h('div', { class: 'diag-row ' + (x.ok ? 'ok' : 'ng') }, h('span', { class: 'mark' }, x.ok ? '✓' : '✗'), h('div', null, h('strong', null, x.label), x.detail ? h('div', { class: 'muted' }, x.detail) : null, !x.ok && x.hint ? h('div', { class: 'hintline' }, x.hint) : null)))); btn.disabled = false; } }, 'インストール診断を実行'), diag));
+    h('button', { class: 'btn small', onclick: async (e) => { const btn = e.currentTarget; btn.disabled = true; diag.innerHTML = ''; diag.append(h('p', { class: 'muted' }, '診断中…')); const r = await diagnose(); diag.innerHTML = ''; r.forEach((x) => diag.append(h('div', { class: 'diag-row ' + (x.ok === null ? 'info' : x.ok ? 'ok' : 'ng') }, h('span', { class: 'mark' }, x.ok === null ? 'ℹ' : x.ok ? '✓' : '✗'), h('div', null, h('strong', null, x.label), x.detail ? h('div', { class: 'muted' }, x.detail) : null, x.ok === false && x.hint ? h('div', { class: 'hintline' }, x.hint) : null)))); btn.disabled = false; } }, 'インストール診断を実行'), diag));
 
   /* AI検索(Google AIモード等)の開き方 */
   const ac = getAiConfig();
@@ -150,12 +150,26 @@ export async function renderSettings(root) {
 
   /* バックアップ */
   const file = h('input', { type: 'file', accept: 'application/json,.json', class: 'hidden', onchange: async (e) => {
-    const f = e.target.files[0]; if (!f) return;
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    let imported = false;
     try {
-      const data = JSON.parse(await f.text());
-      if (!(await confirmBox(`バックアップ(${data.exportedAt ? data.exportedAt.slice(0, 10) : '日付不明'})から復元します。\n現在のデータはすべて置き換えられます。\n先に現在のデータをバックアップしておくことをおすすめします。`, '復元する', true))) return;
-      await db.importAll(data, 'replace'); toast('復元しました'); location.hash = '#/home'; setTimeout(() => location.reload(), 500);
-    } catch (err) { toast('復元に失敗: ' + err.message, 4000); }
+      let data; try { data = JSON.parse(await f.text()); } catch (er) { throw new Error('ファイルを読み取れません(JSONの形式が正しくありません)'); }
+      const info = validateBackup(data); // ここまでは現在のデータに一切触れない
+      const c = info.counts; const n = (k) => c[k] ?? 0;
+      const sum = `植物 ${n('plants')}件 / 種類 ${n('species')}件 / 水やり・肥料の記録 ${n('logs')}件 / 植え替え ${n('repots')}件 / メモリアル ${n('graves')}件 / 配合レシピ ${n('recipes')}件`;
+      const warn = info.warnings.length ? '\n\n※ ' + info.warnings.join('\n※ ') : '';
+      if (!(await confirmBox(`バックアップ(${data.exportedAt ? data.exportedAt.slice(0, 10) : '日付不明'})から復元します。\n${sum}${warn}\n\n現在のデータはすべて置き換えられます。復元の前に、いまのデータを自動でファイルに保存します。`, '復元する', true))) return;
+      // 復元前の自動バックアップ(失敗しても復元前に気づけるよう、先に保存する)
+      try {
+        const cur = await db.exportAll(); const blob = new Blob([JSON.stringify(cur)], { type: 'application/json' });
+        const a = h('a', { href: URL.createObjectURL(blob), download: `plant-backup-before-restore-${C.today()}.json` }); document.body.append(a); a.click(); a.remove();
+      } catch (er) { if (!(await confirmBox('復元前の自動保存に失敗しました。このまま復元しますか?', 'このまま復元する', true))) return; }
+      await db.importAll(data, 'replace'); imported = true;
+      // 件数が一致するか確認
+      const bad = []; for (const k of ['plants', 'species', 'logs', 'repots', 'graves', 'recipes', 'materials']) if (c[k] !== undefined && (await db.all(k)).length !== c[k]) bad.push(k);
+      if (bad.length) throw new Error('復元後の件数が一致しません: ' + bad.join(', '));
+      toast('復元しました', 3000); location.hash = '#/home'; setTimeout(() => location.reload(), 600);
+    } catch (err) { toast(imported ? '復元後の確認で問題が見つかりました: ' + err.message + '(復元前の自動保存ファイルから戻せます)' : '復元に失敗しました。現在のデータは変更されていません: ' + err.message, 7000); }
   } });
   let persisted = null; try { persisted = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted() : null; } catch (e) { /* noop */ }
   const est = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate().catch(() => null) : null;
@@ -200,7 +214,7 @@ export async function renderSettings(root) {
   root.append(h('div', { class: 'card' }, h('h2', null, 'アプリのアイコン'),
     h('div', { class: 'row gap', style: { alignItems: 'center' } },
       h('button', { type: 'button', class: 'icon-thumb', 'aria-label': 'アイコンを大きく表示', onclick: () => modal('アプリのアイコン', (b, close) => {
-        b.append(h('img', { src: 'icons/icon-large.jpg', alt: 'アプリのアイコン(拡大)', class: 'icon-large' }),
+        b.append(h('img', { src: 'icons/icon-large.jpg', alt: 'アプリのアイコン(拡大)', class: 'icon-large', onerror: (e) => { e.target.onerror = null; e.target.src = 'icons/icon-512.png'; } }),
           h('div', { class: 'btn-row' }, h('a', { class: 'btn', href: 'icons/icon-large.jpg', download: 'plant-app-icon.jpg' }, '画像を保存'), h('button', { class: 'btn primary', type: 'button', onclick: close }, '閉じる')));
       }) }, h('img', { src: 'icons/icon-192.png', alt: '' })),
       h('p', { class: 'muted', style: { margin: 0 } }, 'タップすると大きい画像で見られます。')),

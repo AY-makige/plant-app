@@ -13,7 +13,11 @@ export async function diagnose() {
   const secure = window.isSecureContext;
   add(secure, 'HTTPS で開いている', location.origin, 'PWA は https:// または localhost でのみ動作します。http:// や file:// ではインストールできません。GitHub Pages の公開URL(https://…github.io/…)から開いてください。');
   add(!/Line\/|FBAN|FBAV|Instagram|Twitter|MicroMessenger/i.test(navigator.userAgent), 'ふつうのブラウザで開いている', navigator.userAgent.slice(0, 80), 'LINE・Instagram・X などアプリ内ブラウザではインストールできません。右上のメニューから「Chromeで開く」を選んでください。');
-  add(isStandalone() || true, 'アプリとして起動中か', isStandalone() ? 'はい(インストール済みの表示)' : 'いいえ(ブラウザのタブ)');
+  { // 起動状態は情報表示(通常タブでも失敗ではない)。判定できない環境は「判定不可」
+    const canMM = typeof window.matchMedia === 'function'; const iosFlag = window.navigator.standalone;
+    if (!canMM && iosFlag === undefined) out.push({ ok: null, label: 'アプリとして起動中か', detail: '判定不可(このブラウザでは起動状態を調べられません)', hint: '' });
+    else out.push({ ok: null, label: 'アプリとして起動中か', detail: isStandalone() ? 'はい(ホーム画面から起動したアプリの表示)' : 'いいえ(ブラウザのタブで開いています)', hint: '' });
+  }
 
   // manifest
   let man = null;

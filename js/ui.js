@@ -266,12 +266,27 @@ export function ownStart(p) {
   if (p.purchaseYear) return { date: `${p.purchaseYear}-${String(SEASON_MONTH[p.purchaseSeason] || 7).padStart(2, '0')}-15`, approx: true };
   return null;
 }
+/** 暦ベースの年月日(日付のみ・タイムゾーンに依存しない)。開始日 > 終了日 なら null */
+export function calendarSpan(startStr, endStr) {
+  const P = (x) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(x || '')); return m ? { y: +m[1], m: +m[2], d: +m[3] } : null; };
+  const s = P(startStr), e = P(endStr); if (!s || !e) return null;
+  const U = (y, m, d) => Date.UTC(y, m - 1, d);
+  const dim = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate(); // m は 1-12
+  const addM = (n) => { const t = s.y * 12 + (s.m - 1) + n; const y = Math.floor(t / 12), m = (t % 12) + 1; return { y, m, d: Math.min(s.d, dim(y, m)) }; }; // 月末は月末へ丸める
+  const endU = U(e.y, e.m, e.d); if (endU < U(s.y, s.m, s.d)) return null;
+  let n = (e.y - s.y) * 12 + (e.m - s.m);
+  while (n > 0) { const a = addM(n); if (U(a.y, a.m, a.d) <= endU) break; n--; }
+  const a = addM(n); const days = Math.round((endU - U(a.y, a.m, a.d)) / 86400000);
+  return { y: Math.floor(n / 12), m: n % 12, d: days, total: Math.round((endU - U(s.y, s.m, s.d)) / 86400000) };
+}
 export function lifespanText(startInfo, endDate) {
-  if (!startInfo) return '不明';
-  const days = C.diffDays(endDate, startInfo.date);
-  if (days < 0) return '不明';
-  const y = Math.floor(days / 365), m = Math.floor((days % 365) / 30);
-  return (startInfo.approx ? '約' : '') + (y ? `${y}年` : '') + (m || !y ? `${m}ヶ月` : '') + `(${days}日)`;
+  if (!startInfo || !endDate) return '不明';
+  const sp = calendarSpan(startInfo.date, endDate); if (!sp) return '不明';
+  const parts = [];
+  if (sp.y) parts.push(`${sp.y}年`); if (sp.m) parts.push(`${sp.m}ヶ月`);
+  if (!startInfo.approx && (sp.d || !parts.length)) parts.push(`${sp.d}日`);
+  if (startInfo.approx && !parts.length) parts.push('0ヶ月');
+  return (startInfo.approx ? '約' : '') + parts.join('') + `(${sp.total}日)`;
 }
 
 export function empty(icon, msg, action) {
