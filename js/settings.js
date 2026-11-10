@@ -1,10 +1,11 @@
 // settings.js — 地域・通知・バックアップ/復元
-import { h, field, opt, toast, confirmBox, modal, C } from './ui.js';
+import { h, icon, field, opt, toast, confirmBox, modal, C } from './ui.js';
 import { db, getSettings, saveSettings, DEFAULT_TEMPS, validateBackup } from './db.js';
 import { geocode } from './weather.js';
 import * as N from './notify.js';
 import { getTheme, setMode, setStyle } from './theme.js';
 import { DEFAULT_MODEL, geminiLookup, AI_PRESETS, getAiConfig, setAiConfig, openAiSearch, buildAiUrl, isAndroid, getExtBrowser, setExtBrowser } from './search.js';
+import { DEFAULT_EPITAPHS, loadEpitaphCfg, saveEpitaphCfg } from './epitaph.js';
 import { getAppIcon, setAppIcon, resetAppIcon } from './appicon.js';
 import { cropImage } from './ui.js';
 import { downloadGuide, guideAvailable } from './guide.js';
@@ -224,6 +225,37 @@ export async function renderSettings(root) {
       h('a', { class: 'btn small', href: appIconNow.i512, download: 'my-plant-icon.png' }, '画像を保存'),
       h('button', { class: 'btn small ghost', type: 'button', onclick: async () => { await resetAppIcon(); toast('初期のアイコンに戻しました'); rerender(); } }, '初期のアイコンに戻す')))) : null,
     h('button', { class: 'btn primary', type: 'button', onclick: () => pickIconPlant(rerender) }, appIconNow ? '別の植物から選ぶ' : 'ライブラリーから選ぶ')));
+
+  /* 墓石のひとこと(おまけ): 言葉の追加・編集・削除 */
+  {
+    const cfg = await loadEpitaphCfg(); const cur = () => (cfg.list || DEFAULT_EPITAPHS);
+    const persist = async (list) => { cfg.list = list; await saveEpitaphCfg(cfg); draw(); };
+    const listBox = h('div', { class: 'epi-list' }); const info = h('p', { class: 'muted' });
+    const q = h('input', { type: 'search', placeholder: '言葉を探す', 'aria-label': '言葉を探す' });
+    const addIn = h('input', { type: 'text', maxlength: 80, placeholder: '新しい言葉(例: 毎朝いちばんに新芽を見せてくれた…)', 'aria-label': '追加する言葉' });
+    const edit = (i) => modal('言葉を編集', (b, close) => {
+      const ta = h('textarea', { rows: 3, maxlength: 80 }); ta.value = cur()[i];
+      b.append(field('言葉(80文字まで)', ta), h('div', { class: 'btn-row' }, h('button', { class: 'btn ghost', type: 'button', onclick: close }, 'キャンセル'),
+        h('button', { class: 'btn primary', type: 'button', onclick: async () => { const v = ta.value.trim(); if (!v) return toast('言葉を入力してください'); const l = [...cur()]; l[i] = v; close(); await persist([...new Set(l)]); toast('保存しました'); } }, '保存')));
+    });
+    const draw = () => {
+      const l = cur(); const kw = q.value.trim();
+      info.textContent = `登録中 ${l.length}件${cfg.list ? '' : '(初期の言葉)'}。メモリアルの詳細を開くたびに、この中からランダムに表示されます。`;
+      listBox.replaceChildren(...l.map((t, i) => ({ t, i })).filter((x) => !kw || x.t.includes(kw)).map(({ t, i }) => h('div', { class: 'epi-item' }, h('span', null, t),
+        h('button', { class: 'icon-btn sm', type: 'button', 'aria-label': `「${t}」を編集`, onclick: () => edit(i) }, icon('edit', 18)),
+        h('button', { class: 'icon-btn sm', type: 'button', 'aria-label': `「${t}」を削除`, onclick: async () => { const next = l.filter((_, k) => k !== i); await persist(next); toast('削除しました', 6000, { label: '元に戻す', fn: () => persist(l) }); } }, '✕'))));
+      if (!listBox.childNodes.length) listBox.append(h('p', { class: 'muted' }, kw ? '見つかりませんでした' : '言葉がありません(0件のときは初期の言葉を使います)'));
+    };
+    q.addEventListener('input', draw);
+    const ctxChk = h('input', { type: 'checkbox', checked: cfg.context, onchange: async () => { cfg.context = ctxChk.checked; await saveEpitaphCfg(cfg); toast('保存しました'); } });
+    root.append(h('div', { class: 'card' }, h('h2', null, '墓石のひとこと(おまけ)'), info,
+      h('div', { class: 'row gap' }, addIn, h('button', { class: 'btn primary', type: 'button', onclick: async () => { const v = addIn.value.trim(); if (!v) return toast('言葉を入力してください'); if (cur().includes(v)) return toast('同じ言葉がすでにあります'); addIn.value = ''; await persist([...cur(), v]); toast('追加しました'); } }, '追加')),
+      h('label', { class: 'check' }, ctxChk, ' 植物の記録に合わせた言葉(水が好き、屋外管理など)も使う'),
+      q, listBox,
+      h('button', { class: 'btn small', type: 'button', onclick: async () => { if (await confirmBox('言葉の一覧を、初期の言葉に戻します。追加・編集・削除した内容は元に戻ります。', '初期に戻す', true)) { await persist(null); toast('初期の言葉に戻しました'); } } }, '初期の言葉に戻す'),
+      h('small', { class: 'muted' }, 'メモリアルの詳細で「墓石に思い出を刻む」と、その植物だけは自分の言葉が固定表示されます。')));
+    draw();
+  }
 
   root.append(h('div', { class: 'card' }, h('h2', null, 'このアプリについて'), h('p', { class: 'muted' }, 'データはこの端末のブラウザ内(IndexedDB)に保存されます。別の端末とは自動同期されません。端末を変える場合はバックアップ→復元を使ってください。')));
   /* 各項目を開閉式に(開閉状態は端末に記憶) */

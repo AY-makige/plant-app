@@ -1,5 +1,6 @@
+import { db } from './db.js';
 // epitaph.js — メモリアルの「ひとこと」(ランダム表示)。自分で刻んだ言葉(grave.epitaph)があればそちらを固定表示する
-const GENERIC = [
+export const DEFAULT_EPITAPHS = [
   '水が好きだった…',
   '虫が嫌いだった…',
   '明るいところが好きだった…',
@@ -141,10 +142,16 @@ function contextual(g) {
 }
 
 /** 固定の言葉があればそれを、なければランダムに1つ。直前と同じ言葉は避ける */
-export function epitaphFor(g, last) {
+export function epitaphFor(g, last, cfg) {
   if (g.epitaph && g.epitaph.trim()) return { text: g.epitaph.trim(), fixed: true };
-  const pool = [...GENERIC, ...contextual(g), ...contextual(g)]; // 該当する言葉は2倍出やすい
+  const base = cfg && Array.isArray(cfg.list) && cfg.list.length ? cfg.list : DEFAULT_EPITAPHS;
+  const ctx = !cfg || cfg.context !== false ? contextual(g) : [];
+  const pool = [...base, ...ctx, ...ctx]; // 記録に合う言葉は2倍出やすい
   const cand = pool.filter((t) => t !== last);
   const list = cand.length ? cand : pool;
   return { text: list[Math.floor(Math.random() * list.length)], fixed: false };
 }
+
+/** 設定(kv 'epitaphCfg'): { list: 文字列の配列 | null(=初期の言葉), context: 記録に合わせた言葉を使うか } */
+export async function loadEpitaphCfg() { const c = await db.kvGet('epitaphCfg', null); return { list: c && Array.isArray(c.list) ? c.list : null, context: !c || c.context !== false }; }
+export const saveEpitaphCfg = (cfg) => db.kvSet('epitaphCfg', { list: cfg.list, context: cfg.context !== false });

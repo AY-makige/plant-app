@@ -1,7 +1,7 @@
 // memorial.js — 枯死した植物の記録・メモリアル
 import { h, sprite, icon, graveImg, mixLine, empty, field, modal, confirmBox, toast, photoInput, fmtDate, ownStart, purchaseText, lifespanText, C } from './ui.js';
 import { db } from './db.js';
-import { epitaphFor } from './epitaph.js';
+import { epitaphFor, loadEpitaphCfg } from './epitaph.js';
 import { buryPlant, reviveGrave, loadCtx } from './data.js';
 
 export const CAUSES = ['水切れ', '根腐れ', '高温障害', '低温障害', '日照不足', '害虫被害', '病気', '原因不明', 'その他'];
@@ -64,10 +64,11 @@ export async function renderGrave(root, id) {
   const s = g.species || {}; const start = ownStart(g.plant);
   const row = (k, v) => (v ? h('div', { class: 'kv' }, h('dt', null, k), h('dd', { class: 'pre' }, v)) : null);
   // 墓石の言葉: 自分で刻んだ言葉があれば固定表示、なければ開くたびにランダム(タップで別の言葉)
+  const epiCfg = await loadEpitaphCfg();
   const epiBox = h('div', { class: 'card epitaph' });
   const lastKey = 'epi-last-' + g.id; let lastEpi = ''; try { lastEpi = sessionStorage.getItem(lastKey) || ''; } catch (e) { /* noop */ }
   const drawEpi = () => {
-    const e = epitaphFor(g, lastEpi); lastEpi = e.text; try { sessionStorage.setItem(lastKey, e.text); } catch (er) { /* noop */ }
+    const e = epitaphFor(g, lastEpi, epiCfg); lastEpi = e.text; try { sessionStorage.setItem(lastKey, e.text); } catch (er) { /* noop */ }
     epiBox.replaceChildren(
       h('div', { class: 'epi-label' }, e.fixed ? '墓石に刻まれた言葉' : '墓石のひとこと'),
       h('blockquote', { class: 'epi-text' + (e.fixed ? ' fixed' : '') }, e.text),

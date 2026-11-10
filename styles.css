@@ -415,3 +415,5 @@ details.sec{scroll-margin-top:76px}.diag-row.info .mark{color:var(--muted)}
 .epi-tile{display:block;font-style:italic;color:var(--muted);margin-top:.15rem}
 :root[data-theme=dark] .epitaph{background:linear-gradient(180deg,#2b2c2a,#242523);border-color:#3b3c38}:root[data-theme=dark] .epi-text{color:#d8d6cc}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]) .epitaph{background:linear-gradient(180deg,#2b2c2a,#242523);border-color:#3b3c38}:root:not([data-theme=light]) .epi-text{color:#d8d6cc}}
+
+.epi-list{max-height:46vh;overflow:auto;margin:.5rem 0;border:1px solid var(--line);border-radius:12px;padding:.2rem .6rem}.epi-item{display:flex;align-items:center;gap:.3rem;padding:.4rem 0;border-bottom:1px dashed var(--line)}.epi-item:last-child{border-bottom:0}.epi-item span{flex:1;min-width:0;font-size:.92rem}
