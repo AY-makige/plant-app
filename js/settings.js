@@ -4,7 +4,7 @@ import { db, getSettings, saveSettings } from './db.js';
 import { geocode } from './weather.js';
 import * as N from './notify.js';
 import { getTheme, setMode, setStyle } from './theme.js';
-import { DEFAULT_MODEL, geminiLookup, AI_PRESETS, getAiConfig, setAiConfig, openAiSearch, buildAiUrl } from './search.js';
+import { DEFAULT_MODEL, geminiLookup, AI_PRESETS, getAiConfig, setAiConfig, openAiSearch, buildAiUrl, isAndroid, getExtBrowser, setExtBrowser } from './search.js';
 import { downloadGuide, guideAvailable } from './guide.js';
 import { isStandalone, canPrompt, promptInstall, diagnose, appVersion, checkUpdate, clearCacheAndReload } from './pwa.js';
 
@@ -44,6 +44,7 @@ export async function renderSettings(root) {
     h('p', { class: 'muted' }, 'GoogleのAIモードは、検索語つきで開く公式URLが保証されていません。使えなくなった場合は、ここで別の方法に切り替えられます。'),
     field('開き方', aiSel), customWrap,
     h('label', { class: 'check' }, aiCopy, ' 開く前に検索文をクリップボードへコピーする(URLで検索語が反映されない場合に貼り付けられます)'),
+    isAndroid() ? h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: getExtBrowser(), onchange: (e) => { setExtBrowser(e.target.checked); toast(e.target.checked ? 'Chromeで直接開きます' : 'アプリ内で開きます'); } }), ' 検索をアプリの外(Chrome)で開く(ホーム画面から開いたとき)') : null,
     aiPrev, h('div', { class: 'row gap wrap mt' }, h('button', { class: 'btn small', type: 'button', onclick: () => { aiSave(); openAiSearch('ハエトリソウ', toast); } }, '試しに開く')),
     h('div', { class: 'note' }, 'うまく開かない/検索語が入らないときは「Google AIモード入口」「通常のGoogle検索」「Geminiアプリ」に切り替えてください。')));
   aiSave();

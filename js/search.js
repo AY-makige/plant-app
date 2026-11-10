@@ -52,10 +52,20 @@ const envText = (e) => (e === 'indoor' ? '屋内(室内の窓辺・室温管理)
 export const aiPrompt = (name, env = getEnv()) => `植物「${name}」について、日本の本州の平地で${envText(env)}を前提に、次の項目を日本語で簡潔に教えてください。\n${RESEARCH_ITEMS.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n成長サイクルと肥料の推奨時期は1〜12月の月で示してください。液肥はハイポネックスを使う前提で希釈倍率を具体的に(例: 1000倍・2週間に1回)、追肥は遅効性肥料(置き肥など)の量の目安を示してください。信頼できる情報源も示してください。`;
 /** 通常のGoogle検索用(短いキーワード) */
 export const speciesQuery = (name, env = getEnv()) => `${name} ${envLabel(env)}栽培 学名 原産地 適温 最低温度 最高温度 湿度 日照 水やり 成長期 休眠期 植え替え`;
-/** 別の新しいタブで開く。通常のリンクのクリックとして開くので、アプリ内の小窓ではなく(端末のブラウザの)新規タブになりやすい */
+/* ── 外部のブラウザで開く ──
+   ホーム画面に追加したアプリでは、検索結果がアプリの画面の中(アプリ内ブラウザ)に出て、元の画面に戻りにくい。
+   Android では「Chrome で開く」指定(intent URL)を使うと、アプリとは別のブラウザで開ける。設定でオフにできる(既定はオン)。
+   iPhone など他の環境では今までどおり、通常のリンクとして新しいタブで開く。 */
+export const isAndroid = () => /Android/i.test(navigator.userAgent || '');
+const isStandaloneApp = () => { try { return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; } catch (e) { return false; } };
+export const getExtBrowser = () => { try { return localStorage.getItem('pk-extbrowser') !== '0'; } catch (e) { return true; } };
+export const setExtBrowser = (on) => { try { localStorage.setItem('pk-extbrowser', on ? '1' : '0'); } catch (e) { /* noop */ } };
+export const chromeIntentUrl = (url) => { const u = new URL(url); return `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(url)};end`; };
 export const openTab = (url) => {
-  const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.style.display = 'none';
-  document.body.append(a); a.click(); a.remove();
+  const a = document.createElement('a');
+  if (isAndroid() && isStandaloneApp() && getExtBrowser() && /^https:\/\//i.test(url)) { a.href = chromeIntentUrl(url); } // Chromeで開く(未導入なら従来の表示に戻る)
+  else { a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer'; }
+  a.style.display = 'none'; document.body.append(a); a.click(); a.remove();
 };
 
 export const DEFAULT_MODEL = 'gemini-flash-latest';
