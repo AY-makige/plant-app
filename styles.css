@@ -382,3 +382,4 @@ main{padding-bottom:calc(var(--nav-h) + 32px + var(--safe-b))}
 .research-fold{margin:0 0 .6rem}.research-fold summary{cursor:pointer;color:var(--muted);font-size:.9rem;min-height:36px;display:flex;align-items:center;list-style:none}.research-fold summary::-webkit-details-marker{display:none}.research-fold summary::before{content:'▸';margin-right:.4rem;color:var(--g1)}.research-fold[open] summary::before{content:'▾'}.research-fold .chips.research{margin-top:.3rem}
 .ai-q{width:100%;font-size:.85rem;margin:.3rem 0}
 .sched>.row.between{align-self:stretch;width:100%}.sched>.row.between>.row.gap{margin-left:auto}
+.readonly-val{padding:.55rem .7rem;border-radius:12px;background:var(--g3);color:var(--muted)}

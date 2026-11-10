@@ -112,7 +112,21 @@ export async function renderDetail(root, id) {
       n.stopped ? h('p', { class: 'muted' }, '休眠期のため停止中') : !n.date ? h('p', { class: 'muted' }, '間隔が未設定です(編集で設定)') :
         h('div', null, h('div', { class: 'big-date' }, fmtDate(n.date), h('small', null, ` (${relDays(dl, kind)})`)),
           h('small', { class: 'muted' }, `${n.interval}日ごと / 最終: ${cfg.last ? fmtDate(cfg.last) : '未記録'}`)),
-      kind === 'water' ? h('small', { class: 'muted' }, `量・方法: ${C.effWater(p).amount || '—'}`) : h('small', { class: 'muted' }, `${cfg.type || '—'}${cfg.dilution ? ' / ' + cfg.dilution : ''}${cfg.amount ? ' / ' + cfg.amount : ''}`));
+      kind === 'water' ? h('small', { class: 'muted' }, `量・方法: ${C.effWater(p).amount || '—'}`) : h('small', { class: 'muted' }, `${cfg.type || '—'}${cfg.dilution ? ' / ' + cfg.dilution : ''}${cfg.amount ? ' / ' + cfg.amount : ''}`),
+      cfg.last ? h('button', { class: 'btn small ghost', type: 'button', onclick: () => undoLast(kind, label, cfg) }, `最後の${label}の記録を取り消す`) : null);
+  };
+ /** 最後の記録を取り消す(誤って記録した/あげていないとき)。履歴が無く最終日だけ入っている場合は、その日付を消す */
+  const undoLast = async (kind, label, cfg) => {
+    const last = logs.find((l) => l.kind === kind);
+    if (last) {
+      const extra = last.waterLogId ? '\n(液肥と同時に記録した水やりも一緒に取り消されます)' : '';
+      if (!(await confirmBox(`${fmtDate(last.date)}の${label}の記録を取り消します。${extra}\n次回予定日は、残りの記録から計算し直されます。`, '取り消す', true))) return;
+      await deleteLog(last);
+    } else {
+      if (!(await confirmBox(`最終${label}日(${fmtDate(cfg.last)})の入力を消します。`, '消す', true))) return;
+      const cur = await db.get('plants', p.id); cur[kind === 'water' ? 'water' : 'fert'] = { ...(cur[kind === 'water' ? 'water' : 'fert'] || {}), last: '' }; await db.put('plants', cur);
+    }
+    toast('記録を取り消しました'); reload();
   };
   const row = (k, v) => (v || v === 0 ? h('div', { class: 'kv' }, h('dt', null, k), h('dd', null, v)) : null);
   const temp = (v) => (v !== '' && v != null ? `${v}℃` : '未設定');
@@ -289,6 +303,10 @@ export async function renderForm(root, id, params) {
     field('流通名 *', v('commonName', sp.commonName, 'text', { placeholder: '例: ハエトリソウ' })),
     field('個体の呼び名(任意)', v('nickname', p.nickname, 'text', { placeholder: '例: 玄関の子 / ①' }), '未入力なら流通名が表示されます'));
   const w = p.water || {}, f = p.fert || {};
+  // 既存の植物では最終日を直接は書き換えさせない(日付を選ぶだけで「あげた」扱いになるのを防ぐ)。記録は「水やり/肥料」ボタンから
+  const lastField = (name, label, val, what) => (editing
+    ? h('div', { class: 'field' }, h('span', { class: 'lbl' }, label), h('input', { type: 'hidden', name, value: val || '' }), h('div', { class: 'readonly-val' }, val ? fmtDate(val) : '未記録'), h('small', { class: 'muted' }, `${what}をした日は、詳細画面の記録ボタンから日付を指定して記録します`))
+    : field(label, v(name, val, 'date')));
   const sec = (title, open, ...kids) => h('details', { class: 'card sec', open }, h('summary', null, title), h('div', { class: 'sec-body' }, kids));
   form.append(
     sec('① 種類・植物情報', true, nameFields, lookup, field('登録済みの種類から選ぶ', spSelect, '同じ種類を複数持っている場合は、ここで既存の種類を選ぶと別個体として登録できます'), spWrap),
@@ -303,11 +321,11 @@ export async function renderForm(root, id, params) {
     sec('④ 温度設定(温度警告に使用)', false, h('div', { class: 'grid3' },
       field('屋外管理の最低温度(℃)', v('outdoorMin', p.outdoorMin, 'number', { step: '0.5' }), 'これを下回る予報=緊急'), field('室内取り込み目安(℃)', v('indoorTemp', p.indoorTemp, 'number', { step: '0.5' }), '下回る=警告 / 接近=注意'), field('高温注意温度(℃)', v('highTemp', p.highTemp, 'number', { step: '0.5' })))),
     sec('⑤ 水やり設定', true,
-      h('div', { class: 'grid2' }, field('水やり間隔(日)', v('w_interval', w.interval, 'number', { min: 1, placeholder: '例: 3' })), field('最終水やり日', v('w_last', w.last, 'date'))),
+      h('div', { class: 'grid2' }, field('水やり間隔(日)', v('w_interval', w.interval, 'number', { min: 1, placeholder: '例: 3' })), lastField('w_last', '最終水やり日', w.last, '水やり')),
       field('水やり量・方法', v('w_amount', w.amount, 'text', { placeholder: '例: 腰水で常時湿らせる' })),
       h('div', { class: 'sub' }, h('strong', null, '休眠期専用の設定'), h('div', { class: 'grid2' }, field('休眠期の間隔(日)', v('w_dormantInterval', w.dormantInterval, 'number', { min: 0, placeholder: '空欄=通常と同じ / 0=停止' }), '0 を入れると休眠期は水やり通知を停止'), field('休眠期の量・方法', v('w_dormantAmount', w.dormantAmount, 'text', { placeholder: '例: 軽く湿らせる程度' }))))),
     sec('⑥ 液体肥料設定', false,
-      h('div', { class: 'grid2' }, field('施肥間隔(日)', v('f_interval', f.interval, 'number', { min: 1, placeholder: '例: 14' })), field('最終施肥日', v('f_last', f.last, 'date'))),
+      h('div', { class: 'grid2' }, field('施肥間隔(日)', v('f_interval', f.interval, 'number', { min: 1, placeholder: '例: 14' })), lastField('f_last', '最終施肥日', f.last, '液体肥料')),
       field('肥料の種類', v('f_type', f.type)), h('div', { class: 'grid2' }, field('希釈倍率', v('f_dilution', f.dilution, 'text', { placeholder: '例: 2000倍' })), field('使用量', v('f_amount', f.amount))),
       h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'f_stop', checked: f.stopInDormant !== false }), ' 休眠期は施肥を停止する(通知も止まります)')),
     h('div', { class: 'btn-row sticky' }, h('a', { class: 'btn ghost', href: editing ? `#/plants/${id}` : '#/plants' }, 'キャンセル'),
