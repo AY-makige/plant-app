@@ -1,7 +1,7 @@
 // tasks.js — 管理タスク(水やり / 液体肥料 / 実施履歴 / 次回予定)
-import { h, sprite, empty, confirmBox, fmtDate, relDays, stageClass, icon, C } from './ui.js';
+import { h, sprite, empty, confirmBox, fmtDate, relDays, stageClass, icon, toast, C } from './ui.js';
 import { db } from './db.js';
-import { loadCtx, deleteLog } from './data.js';
+import { loadCtx, deleteLog, recordCare } from './data.js';
 import { careModal, quickCare } from './care.js';
 import { avatar } from './plants.js';
 
@@ -53,6 +53,38 @@ export async function renderTasks(root) {
       h('button', { class: 'icon-btn', 'aria-label': '削除', onclick: async () => { if (await confirmBox('この履歴を削除します。次回予定日は再計算されます。', '削除', true)) { await deleteLog(l); rerender(); } } }, icon('trash', 20))));
     }
   } else {
+    const sub = sessionStorage.getItem('taskSub') === 'today' ? 'today' : 'schedule';
+    const label = tab === 'water' ? '水やり' : '液体肥料';
+    body.append(h('div', { class: 'seg task-sub', role: 'tablist' }, [['schedule', 'スケジュール'], ['today', '今日']].map(([k, l]) =>
+      h('button', { class: 'seg-b' + (sub === k ? ' on' : ''), type: 'button', role: 'tab', 'aria-selected': sub === k, onclick: () => { sessionStorage.setItem('taskSub', k); rerender(); } }, l))));
+    if (sub === 'today') {
+      /* 今日: スケジュール(間隔)が決まっていない植物を並べ、チェックしたものを今日実施した記録にする */
+      const t0 = C.today();
+      const unsched = ctx.plants.filter((p) => !C.nextDue(p, tab).date).sort((a, b) => (ctx.names[a.id] || '').localeCompare(ctx.names[b.id] || '', 'ja'));
+      body.append(h('p', { class: 'muted hint' }, `スケジュールが決まっていない植物の一覧です。今日${label}をした植物にチェックを入れて「記録する」を押すと、最終${label}日が今日になります。`));
+      if (!unsched.length) { body.append(empty(tab === 'water' ? 'wateringcan' : 'mister', 'スケジュールが決まっていない植物はありません')); }
+      else {
+        const checks = unsched.map((p) => { const cfg = p[tab] || {}; const done = cfg.last === t0; return { p, done, el: h('input', { type: 'checkbox', disabled: done, 'aria-label': `${ctx.names[p.id]}に${label}をした` }) }; });
+        const cnt = h('span', null, '0'); const btn = h('button', { class: 'btn primary', type: 'button', disabled: true }, '選択した植物に記録する');
+        const upd = () => { const n = checks.filter((c) => c.el.checked).length; cnt.textContent = n; btn.disabled = !n; btn.textContent = n ? `${n}件に${label}を記録する` : '選択した植物に記録する'; };
+        checks.forEach((c) => c.el.addEventListener('change', upd));
+        const allBtn = h('button', { class: 'btn small ghost', type: 'button', onclick: () => { const todo = checks.filter((c) => !c.done); const on = todo.some((c) => !c.el.checked); todo.forEach((c) => { c.el.checked = on; }); upd(); } }, 'すべて選択 / 解除');
+        body.append(h('div', { class: 'row between today-bar' }, h('strong', null, `${unsched.length}株`), allBtn));
+        body.append(h('div', { class: 'today-list' }, checks.map((c) => { const cfg = c.p[tab] || {}; return h('label', { class: 'task today-row' + (c.done ? ' done-today' : '') },
+          c.el, h('span', { class: 'task-av' }, avatar(c.p, 'mini')),
+          h('div', { class: 'task-main' }, h('span', { class: 'task-name' }, ctx.names[c.p.id]), h('div', { class: 'task-meta' }, C.isDormant(c.p) ? h('span', { class: 'mini-badge dorm' }, '休眠期') : null,
+            h('small', { class: 'muted' }, c.done ? '今日記録済み' : `最終${label}: ${cfg.last ? fmtDate(cfg.last) : '未記録'}`)))); })));
+        btn.addEventListener('click', async () => {
+          const sel = checks.filter((c) => c.el.checked); if (!sel.length) return; btn.disabled = true;
+          const made = []; const prev = Object.fromEntries(sel.map((c) => [c.p.id, (c.p[tab] || {}).last || '']));
+          for (const c of sel) { const f = c.p.fert || {}; made.push(await recordCare(c.p, tab, tab === 'water' ? { date: t0, amount: C.effWater(c.p).amount } : { date: t0, amount: f.amount, fertType: f.type, dilution: f.dilution })); }
+          toast(`${sel.length}件に${label}を記録しました`, 6000, { label: '元に戻す', fn: async () => { for (const l of made) { await deleteLog(l); const cur = await db.get('plants', l.plantId); if (cur && !(cur[tab] || {}).last && prev[l.plantId]) { cur[tab] = { ...(cur[tab] || {}), last: prev[l.plantId] }; await db.put('plants', cur); } } rerender(); } });
+          rerender();
+        });
+        body.append(h('div', { class: 'today-foot' }, btn));
+      }
+      root.append(head, body); return;
+    }
     const list = tasks.filter((t) => t.kind === tab);
     const stopped = ctx.plants.filter((p) => !C.nextDue(p, tab).date);
     body.append(h('p', { class: 'muted hint' }, '右の ✓ をタップで「今日やった」を記録。予定日は最終実施日 + 間隔で自動計算されます。'));

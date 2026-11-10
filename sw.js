@@ -1,6 +1,6 @@
 /* sw.js — オフライン用キャッシュ + バックグラウンド通知チェック */
 importScripts('js/core.js');
-const CACHE = 'plantkeeper-v40';
+const CACHE = 'plantkeeper-v41';
 const SHELL = ['./', 'index.html', 'styles.css', 'manifest.webmanifest', 'js/core.js', 'js/app.js', 'js/db.js', 'js/ui.js', 'js/data.js', 'js/care.js', 'js/plants.js', 'js/soil.js', 'js/memorial.js', 'js/tasks.js', 'js/calendar.js', 'js/home.js', 'js/settings.js', 'js/weather.js', 'js/notify.js', 'js/pwa.js', 'js/guide.js', 'js/theme.js', 'js/search.js', 'assets/grave.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-64.png', 'icons/icon-maskable-192.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {

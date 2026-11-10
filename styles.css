@@ -383,3 +383,7 @@ main{padding-bottom:calc(var(--nav-h) + 32px + var(--safe-b))}
 .ai-q{width:100%;font-size:.85rem;margin:.3rem 0}
 .sched>.row.between{align-self:stretch;width:100%}.sched>.row.between>.row.gap{margin-left:auto}
 .readonly-val{padding:.55rem .7rem;border-radius:12px;background:var(--g3);color:var(--muted)}
+.task-sub{max-width:300px;margin:0 0 .6rem}
+.today-bar{margin:.2rem 0 .4rem}.today-list{display:flex;flex-direction:column;gap:.4rem}
+.today-row{display:flex;align-items:center;gap:.7rem;cursor:pointer;padding:.5rem .7rem}.today-row input[type=checkbox]{flex:none}.today-row.done-today{opacity:.6}
+.today-foot{position:sticky;bottom:84px;display:flex;justify-content:center;padding:.6rem 0}.today-foot .btn{box-shadow:var(--shadow)}
