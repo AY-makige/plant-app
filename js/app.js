@@ -10,6 +10,7 @@ import { renderMemorial, renderGrave } from './memorial.js';
 import { renderSettings } from './settings.js';
 import * as N from './notify.js';
 import { maybeOfferGuide } from './guide.js';
+import { applyAppIcon } from './appicon.js';
 import { applyTheme, toggleMode, resolvedMode } from './theme.js';
 
 const NAV = [['home', 'ホーム', 'home'], ['plants', 'ライブラリー', 'plants'], ['tasks', '水やり', 'drop'], ['calendar', 'カレンダー', 'calendar'], ['soil', '用土', 'soil'], ['memorial', 'メモリアル', 'grave']];
@@ -56,6 +57,7 @@ function themeButtons() {
 async function init() {
   applyTheme();
   await ensureDefaults();
+  applyAppIcon();
   const items = NAV.map(([k, l, ic]) => h('a', { href: `#/${k}`, 'data-nav': k, class: 'nav-item' }, icon(ic, 24), h('span', null, l)));
   document.getElementById('nav').append(...items);
   document.getElementById('side-extra').append(h('a', { href: '#/settings', 'data-nav': 'settings', class: 'nav-item' }, icon('settings', 24), h('span', null, '設定')));

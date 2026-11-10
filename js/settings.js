@@ -5,6 +5,8 @@ import { geocode } from './weather.js';
 import * as N from './notify.js';
 import { getTheme, setMode, setStyle } from './theme.js';
 import { DEFAULT_MODEL, geminiLookup, AI_PRESETS, getAiConfig, setAiConfig, openAiSearch, buildAiUrl, isAndroid, getExtBrowser, setExtBrowser } from './search.js';
+import { getAppIcon, setAppIcon, resetAppIcon } from './appicon.js';
+import { cropImage } from './ui.js';
 import { downloadGuide, guideAvailable } from './guide.js';
 import { isStandalone, canPrompt, promptInstall, diagnose, appVersion, checkUpdate, clearCacheAndReload } from './pwa.js';
 
@@ -13,6 +15,18 @@ function mergeCards(title, parts) {
   const kids = [h('h2', null, title)];
   parts.forEach(([sub, card]) => { if (sub) kids.push(h('h3', { class: 'set-sub' }, sub)); [...card.childNodes].forEach((n) => { if (n.nodeName !== 'H2') kids.push(n); }); });
   return h('div', { class: 'card' }, kids);
+}
+
+/** 写真つきの植物を一覧 → トリミング → アイコンに設定 */
+async function pickIconPlant(done) {
+  const [plants, species] = await Promise.all([db.all('plants'), db.all('species')]);
+  const nm = (p) => p.nickname || (species.find((x) => x.id === p.speciesId) || {}).commonName || '植物';
+  const list = plants.filter((p) => p.photo);
+  modal('アイコンにする植物を選ぶ', (b, close) => {
+    if (!list.length) { b.append(h('p', { class: 'muted' }, '写真を登録した植物がありません。植物の編集画面で写真を設定してから、もう一度お試しください。'), h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', type: 'button', onclick: close }, '閉じる'))); return; }
+    b.append(h('p', { class: 'muted' }, '写真のある植物だけ表示しています。次の画面で、アイコンにする範囲を選べます(正方形がおすすめ)。'),
+      h('div', { class: 'icon-pick' }, list.map((p) => h('button', { type: 'button', class: 'icon-pick-b', onclick: async () => { close(); const r = await cropImage(p.photo, { max: 512, q: 0.9 }); if (!r) return; try { await setAppIcon(r, nm(p)); toast(`「${nm(p)}」をアプリのアイコンにしました`); done(); } catch (e) { toast(e.message); } } }, h('img', { src: p.photo, alt: '' }), h('span', null, nm(p))))));
+  });
 }
 
 export async function renderSettings(root) {
@@ -182,13 +196,20 @@ export async function renderSettings(root) {
     h('button', { class: 'btn primary', type: 'button', onclick: async () => { if (await guideAvailable()) { downloadGuide(); gMsg.textContent = 'ダウンロードを開始しました。'; } else gMsg.textContent = 'ガイドのファイルが見つかりませんでした(公開フォルダにPDFが置かれているか確認してください)。'; } }, '⬇ 使い方ガイド(PDF)をダウンロード'), gMsg));
 
   /* アプリのアイコン(拡大表示) */
+  const appIconNow = await getAppIcon();
   root.append(h('div', { class: 'card' }, h('h2', null, 'アプリのアイコン'),
     h('div', { class: 'row gap', style: { alignItems: 'center' } },
       h('button', { type: 'button', class: 'icon-thumb', 'aria-label': 'アイコンを大きく表示', onclick: () => modal('アプリのアイコン', (b, close) => {
         b.append(h('img', { src: 'icons/icon-large.jpg', alt: 'アプリのアイコン(拡大)', class: 'icon-large' }),
           h('div', { class: 'btn-row' }, h('a', { class: 'btn', href: 'icons/icon-large.jpg', download: 'plant-app-icon.jpg' }, '画像を保存'), h('button', { class: 'btn primary', type: 'button', onclick: close }, '閉じる')));
       }) }, h('img', { src: 'icons/icon-192.png', alt: '' })),
-      h('p', { class: 'muted', style: { margin: 0 } }, 'タップすると大きい画像で見られます。'))));
+      h('p', { class: 'muted', style: { margin: 0 } }, 'タップすると大きい画像で見られます。')),
+    h('h3', { class: 'set-sub' }, 'ライブラリーの植物から設定(おまけ)'),
+    h('p', { class: 'muted' }, 'ライブラリーに登録した自分の植物の写真を、アプリのアイコンにできます。変更されるのは、この端末のアプリ画面上部・ブラウザのタブ・(iPhoneの)ホーム画面追加時のアイコンです。すでにホーム画面に置いたアイコンは、端末の仕組み上、自動では変わりません。'),
+    appIconNow ? h('div', { class: 'row gap', style: { alignItems: 'center' } }, h('img', { src: appIconNow.i192, alt: '', class: 'icon-mine' }), h('div', null, h('strong', null, appIconNow.name || '設定中'), h('div', { class: 'row gap wrap mt' },
+      h('a', { class: 'btn small', href: appIconNow.i512, download: 'my-plant-icon.png' }, '画像を保存'),
+      h('button', { class: 'btn small ghost', type: 'button', onclick: async () => { await resetAppIcon(); toast('初期のアイコンに戻しました'); rerender(); } }, '初期のアイコンに戻す')))) : null,
+    h('button', { class: 'btn primary', type: 'button', onclick: () => pickIconPlant(rerender) }, appIconNow ? '別の植物から選ぶ' : 'ライブラリーから選ぶ')));
 
   root.append(h('div', { class: 'card' }, h('h2', null, 'このアプリについて'), h('p', { class: 'muted' }, 'データはこの端末のブラウザ内(IndexedDB)に保存されます。別の端末とは自動同期されません。端末を変える場合はバックアップ→復元を使ってください。')));
   /* 各項目を開閉式に(開閉状態は端末に記憶) */
