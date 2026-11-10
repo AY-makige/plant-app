@@ -406,3 +406,12 @@ main{padding-bottom:calc(var(--nav-h) + 32px + var(--safe-b))}
 details.sec{scroll-margin-top:76px}.diag-row.info .mark{color:var(--muted)}
 
 .half-row{display:flex;gap:.8rem;flex-wrap:wrap}.half-row.dim{opacity:.5}.buy-box .field{margin-bottom:.4rem}
+
+.epitaph{text-align:center;background:linear-gradient(180deg,#f1efe9,#e6e3da);border:1px solid #cfcabd}
+.epi-label{font-size:.78rem;color:var(--muted);letter-spacing:.12em;margin-bottom:.2rem}
+.epi-text{margin:.5rem 0 .8rem;font-size:1.15rem;line-height:1.7;font-family:"Hiragino Mincho ProN","Yu Mincho",serif;color:#4a4a42;quotes:none}
+.epi-text.fixed{font-size:1.25rem;font-weight:700}
+.epitaph .row{justify-content:center}
+.epi-tile{display:block;font-style:italic;color:var(--muted);margin-top:.15rem}
+:root[data-theme=dark] .epitaph{background:linear-gradient(180deg,#2b2c2a,#242523);border-color:#3b3c38}:root[data-theme=dark] .epi-text{color:#d8d6cc}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .epitaph{background:linear-gradient(180deg,#2b2c2a,#242523);border-color:#3b3c38}:root:not([data-theme=light]) .epi-text{color:#d8d6cc}}

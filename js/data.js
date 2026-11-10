@@ -72,7 +72,7 @@ export async function buryPlant(plant, species, info, names) {
   const repots = (await db.byPlant('repots', plant.id)).sort((a, b) => b.date.localeCompare(a.date));
   const grave = {
     id: uid(), name: names[plant.id], plant: cur, species: species || null, photo: info.photo || cur.photo || '', sprite: cur.sprite || '',
-    deathDate: info.deathDate, causes: info.causes, causeNote: info.causeNote, env: info.env, lastCare: logs, repots, notes: info.notes, createdAt: Date.now(),
+    deathDate: info.deathDate, causes: info.causes, causeNote: info.causeNote, env: info.env, epitaph: info.epitaph || '', lastCare: logs, repots, notes: info.notes, createdAt: Date.now(),
   };
   // お墓の作成 + 履歴・植物の削除を1回で行う(途中で失敗しても履歴だけ消える事態を防ぐ)
   await db.atomic(['graves', 'logs', 'repots', 'plants'], (st) => {
