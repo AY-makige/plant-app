@@ -388,3 +388,4 @@ main{padding-bottom:calc(var(--nav-h) + 32px + var(--safe-b))}
 .today-row{display:flex;align-items:center;gap:.7rem;cursor:pointer;padding:.5rem .7rem}.today-row input[type=checkbox]{flex:none}.today-row.done-today{opacity:.6}
 .today-foot{position:sticky;bottom:84px;display:flex;justify-content:center;padding:.6rem 0}.today-foot .btn{box-shadow:var(--shadow)}
 .task-sub{max-width:none}.interval-big{font-size:1.1rem;margin-top:.2rem}.interval-big b{font-size:2.2rem;font-weight:700;margin-right:.15rem}
+.next-due{display:flex;flex-wrap:wrap;align-items:baseline;gap:.2rem .6rem;margin-top:.5rem}.next-due strong{font-size:1.15rem}.next-due small:last-child{flex-basis:100%}

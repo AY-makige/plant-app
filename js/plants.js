@@ -111,7 +111,11 @@ export async function renderDetail(root, id) {
         h('a', { class: 'icon-btn sm', href: `#/plants/${p.id}/edit`, 'aria-label': `${title}を編集`, title: '編集', onclick: () => { try { sessionStorage.setItem('editFocus', kind); } catch (e) { /* noop */ } } }, icon('edit', 18)))),
       eff.stopped ? h('div', { class: 'interval-big muted' }, '休眠期のため停止中')
         : !eff.interval ? h('div', { class: 'interval-big muted' }, '未設定')
-          : h('div', { class: 'interval-big' }, h('b', null, eff.interval), '日に1回'));
+          : [h('div', { class: 'interval-big' }, h('b', null, eff.interval), '日に1回'),
+            // 次回予定日 = 最終実施日(履歴・カレンダー)+ 間隔
+            (() => { const n = C.nextDue(p, kind); const dl = C.diffDays(n.date, C.today());
+              return h('div', { class: 'next-due' }, h('span', { class: 'muted' }, '次回予定日'), h('strong', null, fmtDate(n.date)), h('small', { class: 'muted' }, n.noLast ? '(最終の記録がないため今日が基準)' : `(${relDays(dl, kind)})`),
+                h('small', { class: 'muted' }, `最終${kind === 'water' ? '水やり' : '液肥'}日: ${n.last ? fmtDate(n.last) : '未記録'}`)); })()]);
   };
   const row = (k, v) => (v || v === 0 ? h('div', { class: 'kv' }, h('dt', null, k), h('dd', null, v)) : null);
   const temp = (v) => (v !== '' && v != null ? `${v}℃` : '未設定');

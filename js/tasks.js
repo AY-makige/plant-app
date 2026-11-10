@@ -60,9 +60,11 @@ export async function renderTasks(root) {
     if (sub === 'today') {
       /* 今日: スケジュール(間隔)が決まっていない植物を並べ、チェックしたものを今日実施した記録にする */
       const t0 = C.today();
-      const unsched = ctx.plants.filter((p) => !C.nextDue(p, tab).date).sort((a, b) => (ctx.names[a.id] || '').localeCompare(ctx.names[b.id] || '', 'ja'));
-      body.append(h('p', { class: 'muted hint' }, `スケジュールが決まっていない植物の一覧です。今日${label}をした植物にチェックを入れて「記録する」を押すと、最終${label}日が今日になります。`));
-      if (!unsched.length) { body.append(empty(tab === 'water' ? 'wateringcan' : 'mister', 'スケジュールが決まっていない植物はありません')); }
+      const showAll = sessionStorage.getItem('taskTodayAll') === '1'; // スケジュールが組まれている植物も表示(イレギュラーな実施を記録する用)
+      const unsched = ctx.plants.filter((p) => showAll || !C.nextDue(p, tab).date).sort((a, b) => (ctx.names[a.id] || '').localeCompare(ctx.names[b.id] || '', 'ja'));
+      body.append(h('button', { class: 'btn small' + (showAll ? ' primary' : ''), type: 'button', 'aria-pressed': showAll, onclick: () => { sessionStorage.setItem('taskTodayAll', showAll ? '0' : '1'); rerender(); } }, showAll ? '✓ スケジュールが組まれている植物を表示中' : 'スケジュールが組まれている植物を表示'));
+      body.append(h('p', { class: 'muted hint' }, `${showAll ? 'すべての植物の一覧です。' : 'スケジュールが決まっていない植物の一覧です。'}今日${label}をした植物にチェックを入れて「記録する」を押すと、最終${label}日が今日になります。`));
+      if (!unsched.length) { body.append(empty(tab === 'water' ? 'wateringcan' : 'mister', showAll ? '植物がありません' : 'スケジュールが決まっていない植物はありません')); }
       else {
         const checks = unsched.map((p) => { const cfg = p[tab] || {}; const done = cfg.last === t0; return { p, done, el: h('input', { type: 'checkbox', disabled: done, 'aria-label': `${ctx.names[p.id]}に${label}をした` }) }; });
         const cnt = h('span', null, '0'); const btn = h('button', { class: 'btn primary', type: 'button', disabled: true }, '選択した植物に記録する');
@@ -73,7 +75,7 @@ export async function renderTasks(root) {
         body.append(h('div', { class: 'today-list' }, checks.map((c) => { const cfg = c.p[tab] || {}; return h('label', { class: 'task today-row' + (c.done ? ' done-today' : '') },
           c.el, h('span', { class: 'task-av' }, avatar(c.p, 'mini')),
           h('div', { class: 'task-main' }, h('span', { class: 'task-name' }, ctx.names[c.p.id]), h('div', { class: 'task-meta' }, C.isDormant(c.p) ? h('span', { class: 'mini-badge dorm' }, '休眠期') : null,
-            h('small', { class: 'muted' }, c.done ? '今日記録済み' : `最終${label}: ${cfg.last ? fmtDate(cfg.last) : '未記録'}`)))); })));
+            h('small', { class: 'muted' }, c.done ? '今日記録済み' : `最終${label}: ${cfg.last ? fmtDate(cfg.last) : '未記録'}${C.nextDue(c.p, tab).date ? ' / 次回予定: ' + fmtDate(C.nextDue(c.p, tab).date) : ''}`)))); })));
         btn.addEventListener('click', async () => {
           const sel = checks.filter((c) => c.el.checked); if (!sel.length) return; btn.disabled = true;
           const made = []; const prev = Object.fromEntries(sel.map((c) => [c.p.id, (c.p[tab] || {}).last || '']));
