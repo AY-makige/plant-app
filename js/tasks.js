@@ -60,11 +60,17 @@ export async function renderTasks(root) {
     if (sub === 'today') {
       /* 今日: スケジュール(間隔)が決まっていない植物を並べ、チェックしたものを今日実施した記録にする */
       const t0 = C.today();
-      const showAll = sessionStorage.getItem('taskTodayAll') === '1'; // スケジュールが組まれている植物も表示(イレギュラーな実施を記録する用)
-      const unsched = ctx.plants.filter((p) => showAll || !C.nextDue(p, tab).date).sort((a, b) => (ctx.names[a.id] || '').localeCompare(ctx.names[b.id] || '', 'ja'));
-      body.append(h('button', { class: 'btn small' + (showAll ? ' primary' : ''), type: 'button', 'aria-pressed': showAll, onclick: () => { sessionStorage.setItem('taskTodayAll', showAll ? '0' : '1'); rerender(); } }, showAll ? '✓ スケジュールが組まれている植物を表示中' : 'スケジュールが組まれている植物を表示'));
-      body.append(h('p', { class: 'muted hint' }, `${showAll ? 'すべての植物の一覧です。' : 'スケジュールが決まっていない植物の一覧です。'}今日${label}をした植物にチェックを入れて「記録する」を押すと、最終${label}日が今日になります。`));
-      if (!unsched.length) { body.append(empty(tab === 'water' ? 'wateringcan' : 'mister', showAll ? '植物がありません' : 'スケジュールが決まっていない植物はありません')); }
+      // 表示の切り替え: off=スケジュールなしの植物 / all=すべて / sched=スケジュールが組まれている植物のみ(イレギュラーな実施の記録用)
+      const mode = ['all', 'sched'].includes(sessionStorage.getItem('taskTodayMode')) ? sessionStorage.getItem('taskTodayMode') : 'off';
+      const showAll = mode === 'all';
+      const hasSch = (p) => !!C.nextDue(p, tab).date;
+      const unsched = ctx.plants.filter((p) => (mode === 'off' ? !hasSch(p) : mode === 'sched' ? hasSch(p) : true)).sort((a, b) => (ctx.names[a.id] || '').localeCompare(ctx.names[b.id] || '', 'ja'));
+      const setMode = (m) => { sessionStorage.setItem('taskTodayMode', m); rerender(); };
+      body.append(h('div', { class: 'col today-modes' },
+        h('button', { class: 'btn small' + (mode === 'all' ? ' primary' : ''), type: 'button', 'aria-pressed': mode === 'all', onclick: () => setMode(mode === 'all' ? 'off' : 'all') }, mode === 'all' ? '✓ スケジュールが組まれている植物を表示中' : 'スケジュールが組まれている植物を表示'),
+        h('button', { class: 'btn small' + (mode === 'sched' ? ' primary' : ''), type: 'button', 'aria-pressed': mode === 'sched', onclick: () => setMode(mode === 'sched' ? 'off' : 'sched') }, mode === 'sched' ? '✓ スケジュールが組まれている植物のみ表示中' : 'スケジュールが組まれている植物のみ表示')));
+      body.append(h('p', { class: 'muted hint' }, `${mode === 'all' ? 'すべての植物の一覧です。' : mode === 'sched' ? 'スケジュールが組まれている植物の一覧です。' : 'スケジュールが決まっていない植物の一覧です。'}今日${label}をした植物にチェックを入れて「記録する」を押すと、最終${label}日が今日になります。`));
+      if (!unsched.length) { body.append(empty(tab === 'water' ? 'wateringcan' : 'mister', mode === 'off' ? 'スケジュールが決まっていない植物はありません' : mode === 'sched' ? 'スケジュールが組まれている植物はありません' : '植物がありません')); }
       else {
         const checks = unsched.map((p) => { const cfg = p[tab] || {}; const done = cfg.last === t0; return { p, done, el: h('input', { type: 'checkbox', disabled: done, 'aria-label': `${ctx.names[p.id]}に${label}をした` }) }; });
         const cnt = h('span', null, '0'); const btn = h('button', { class: 'btn primary', type: 'button', disabled: true }, '選択した植物に記録する');
