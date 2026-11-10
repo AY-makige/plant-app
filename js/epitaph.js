@@ -126,7 +126,6 @@ function contextual(g) {
   if (/湿|水|腰水/.test(text(s.moisture)) || (p.water && p.water.interval && Number(p.water.interval) <= 3)) out.push('水が好きだった…', 'のどが渇きやすい子だった…');
   if (/日なた|直射|明る|日当/.test(text(s.light))) out.push('明るいところが好きだった…', 'お日さまのことが大好きだった…');
   if (/日陰|半日陰|明るい日陰|室内/.test(text(s.light))) out.push('静かな日陰が落ち着く場所だった…');
-  if (p.location === 'outdoor') out.push('外は寒かった…', '外は暑かった…', '外は寒かった…', '外は暑かった…'); // 屋外管理だった子
   if (Number(p.price) >= 5000) out.push('お高い存在だった…', '家族(財布)も覚悟して迎えた存在だった…');
   if (Number(p.price) > 0 && Number(p.price) <= 500) out.push('お手頃価格でも、かけがえのない存在だった…');
   const causes = (g.causes || []).map((c) => c.cause).join(' ');
@@ -146,7 +145,9 @@ export function epitaphFor(g, last, cfg) {
   if (g.epitaph && g.epitaph.trim()) return { text: g.epitaph.trim(), fixed: true };
   const base = cfg && Array.isArray(cfg.list) && cfg.list.length ? cfg.list : DEFAULT_EPITAPHS;
   const ctx = !cfg || cfg.context !== false ? contextual(g) : [];
-  const pool = [...base, ...ctx, ...ctx]; // 記録に合う言葉は2倍出やすい
+  const p0 = g.plant || {};
+  const outdoor = p0 && p0.location === 'outdoor' ? ['外は寒かった…', '外は暑かった…'] : []; // 屋外管理だった子(出やすさは控えめに各1件)
+  const pool = [...base, ...ctx, ...ctx, ...outdoor]; // 記録に合う言葉は2倍出やすい
   const cand = pool.filter((t) => t !== last);
   const list = cand.length ? cand : pool;
   return { text: list[Math.floor(Math.random() * list.length)], fixed: false };
