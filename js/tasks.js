@@ -14,12 +14,13 @@ export function taskRow(ctx, t, onDone) {
     h('div', { class: 'task-main' }, h('a', { class: 'task-name', href: `#/plants/${p.id}` }, t.name),
       h('div', { class: 'task-meta' }, h('span', { class: 'kind ' + t.kind }, icon(t.kind === 'water' ? 'drop' : 'flask', 14), label), C.isDormant(p) ? h('span', { class: 'mini-badge dorm' }, '休眠期') : null,
         h('span', { class: 'due-chip' + sc }, relDays(t.daysLeft, t.kind)), sc && t.daysLeft !== 0 ? h('small', { class: 'muted' }, relDays(t.daysLeft)) : null)),
-    t.kind === 'fert' ? h('button', { class: 'btn small ghost skip-btn', type: 'button', 'aria-label': `${t.name}の液肥を今回はスキップ`, onclick: async () => {
-      const log = await recordSkip(p); const n = C.nextDue(await db.get('plants', p.id), 'fert');
-      toast(`${t.name}の液肥をスキップしました(次回 ${n.date ? n.date.slice(5).replace('-', '/') : '—'})`, 6000, { label: '元に戻す', fn: async () => { await deleteLog(log); onDone && onDone(); } }); onDone && onDone();
-    } }, 'スキップ') : null,
     h('button', { class: 'icon-btn sm', type: 'button', 'aria-label': `${t.name}の${label}を日付指定で記録`, onclick: () => careModal(p, t.kind, onDone) }, icon('edit', 18)),
     h('button', { class: 'check-btn ' + t.kind, type: 'button', 'aria-label': `${t.name}の${label}を実施済みにする`, onclick: async () => { row.classList.add('done'); await quickCare(p, t.kind, onDone); } }, icon('check', 24)));
+  const skipBtn = h('button', { class: 'btn small ghost skip-btn', type: 'button', 'aria-label': `${t.name}の液肥を今回はスキップ`, onclick: async () => {
+      const log = await recordSkip(p); const n = C.nextDue(await db.get('plants', p.id), 'fert');
+      toast(`${t.name}の液肥をスキップしました(次回 ${n.date ? n.date.slice(5).replace('-', '/') : '—'})`, 6000, { label: '元に戻す', fn: async () => { await deleteLog(log); onDone && onDone(); } }); onDone && onDone();
+    } }, 'スキップ');
+  if (t.kind === 'fert') row.querySelector('.task-main').append(skipBtn);
   return row;
 }
 
