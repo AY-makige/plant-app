@@ -36,7 +36,7 @@ export async function checkAndNotify() {
   if (permission() !== 'granted') return 0;
   const [plants, species, settings] = await Promise.all([db.all('plants'), db.all('species'), getSettings()]);
   const notified = await db.kvGet('notified', {});
-  const list = C.computeDueNotifications(plants, plantNames(plants, species), settings, notified);
+  const list = C.computeDueNotifications(plants, plantNames(plants, species), settings, notified, new Date(), Object.fromEntries(species.map((s) => [s.id, s])));
   if (!list.length) return 0;
   const reg = await navigator.serviceWorker.ready;
   for (const n of list) {

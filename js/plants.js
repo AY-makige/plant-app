@@ -156,7 +156,7 @@ export async function renderDetail(root, id) {
     h('button', { class: 'seg-b' + (detailTab === k ? ' on' : ''), role: 'tab', 'aria-selected': detailTab === k, onclick: (e) => { detailTab = k; [...seg.children].forEach((c) => { c.classList.remove('on'); c.setAttribute('aria-selected', 'false'); }); e.currentTarget.classList.add('on'); e.currentTarget.setAttribute('aria-selected', 'true'); drawPanel(); } }, l)));
 
   root.append(
-    h('div', { class: 'd-hero' }, avatar(p, 'dh'),
+    h('div', { class: 'd-hero' + (p.photo ? ' has-photo' : '') }, avatar(p, 'dh'),
       h('a', { class: 'fl-btn left', href: '#/plants', 'aria-label': 'ライブラリーへ戻る' }, icon('back', 22)),
       h('a', { class: 'fl-btn right', href: `#/plants/${id}/edit`, 'aria-label': '編集' }, icon('edit', 20))),
     h('div', { class: 'd-sheet' },
@@ -167,6 +167,7 @@ export async function renderDetail(root, id) {
         qa(dorm ? 'sun' : 'snow', dorm ? '休眠を解除' : '休眠期へ', async () => { if (dorm) { p.status = p.prevStatus && p.prevStatus !== '休眠中' ? p.prevStatus : '育成中'; } else { p.prevStatus = p.status; p.status = '休眠中'; } await db.put('plants', p); toast(dorm ? `「${p.status}」に戻しました(通常の水やり設定)` : '休眠期モードにしました'); reload(); }, 'dorm'),
         qa('pot', '植え替え', () => repotModal(p, null, reload), 'pot')),
       seg, panel));
+  { const hero = root.querySelector('.d-hero.has-photo'); if (hero) hero.style.setProperty('--hero-bg', `url("${p.photo}")`); } // 写真の背景(ぼかし)
   drawPanel();
 }
 
@@ -183,7 +184,7 @@ export async function renderForm(root, id, params) {
   const ctx = await loadCtx();
   const editing = id ? ctx.plants.find((x) => x.id === id) : null;
   if (id && !editing) { root.append(empty('i_warn', '植物が見つかりません')); return; }
-  const p = editing || { status: '育成中', water: { last: C.today() }, fert: { stopInDormant: true, last: '' } };
+  const p = editing || { status: '育成中', water: { last: '' }, fert: { stopInDormant: true, last: '' } };
   let sp = ctx.sp[p.speciesId] || { cycle: {}, commonName: (!editing && params && params.get('name')) || '' };
   const gcfg = await geminiConfig();
   const photo = photoInput(p.photo);
@@ -294,7 +295,7 @@ export async function renderForm(root, id, params) {
   const w = p.water || {}, f = p.fert || {};
   // 既存の植物では最終日を直接は書き換えさせない(日付を選ぶだけで「あげた」扱いになるのを防ぐ)。記録は「水やり/肥料」ボタンから
   const lastField = (name, label, val, what) => (editing
-    ? h('div', { class: 'field' }, h('span', { class: 'lbl' }, label), h('input', { type: 'hidden', name, value: val || '' }), h('div', { class: 'readonly-val' }, val ? fmtDate(val) : '未記録'), h('small', { class: 'muted' }, `${what}をした日は、詳細画面の記録ボタンから日付を指定して記録します`))
+    ? h('div', { class: 'field' }, h('span', { class: 'lbl' }, label), h('input', { type: 'hidden', name, value: val || '' }), h('div', { class: 'readonly-val row between' }, h('span', null, val ? fmtDate(val) : '未記録'), val ? h('button', { class: 'btn small ghost', type: 'button', onclick: (e) => { e.currentTarget.closest('.field').querySelector('input[type=hidden]').value = ''; e.currentTarget.previousSibling.textContent = '未記録(保存すると消えます)'; e.currentTarget.remove(); } }, '日付を消す') : null), h('small', { class: 'muted' }, `${what}をした日は、詳細画面の記録ボタンから日付を指定して記録します`))
     : field(label, v(name, val, 'date')));
   const sec = (title, open, ...kids) => h('details', { class: 'card sec', open }, h('summary', null, title), h('div', { class: 'sec-body' }, kids));
   form.append(

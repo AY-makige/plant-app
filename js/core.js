@@ -122,7 +122,7 @@
 
   /** 通知対象の判定。段階ごとに「予定日につき1回」だけ通知し、同じ段階の植物は1通にまとめる。
       notified は {key:時刻} の既通知マップ。設定した時刻より前は何も返さない */
-  function computeDueNotifications(plants, names, settings, notified, now) {
+  function computeDueNotifications(plants, names, settings, notified, now, speciesMap) {
     const n = notifyCfg(settings);
     if (!n.enabled) return [];
     now = now || new Date();
@@ -130,7 +130,11 @@
     if (now.getHours() * 60 + now.getMinutes() < hh * 60 + mm) return [];
     const labels = mergeLabels(settings && settings.labels);
     const groups = new Map();
+    const month = now.getMonth() + 1; const byId = Object.fromEntries(plants.map((p) => [p.id, p]));
+    /** 液肥は成長期の月だけ通知(種類に成長期が設定されていないときは判断できないので従来どおり通知) */
+    const fertOk = (plantId) => { const sp = speciesMap && byId[plantId] ? speciesMap[byId[plantId].speciesId] : null; const g = sp && sp.cycle && Array.isArray(sp.cycle.growth) ? sp.cycle.growth.map(Number) : []; return !g.length || g.includes(month); };
     for (const t of buildTasks(plants, names)) {
+      if (t.kind === 'fert' && !fertOk(t.plantId)) continue;
       const ns = notifStageOf(t.daysLeft), st = stageOf(t.kind, t.daysLeft);
       if (!ns || !n.stages[ns]) continue;
       const key = `${t.plantId}:${t.kind}:${t.due}:${ns}`;
