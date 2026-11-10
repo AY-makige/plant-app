@@ -34,6 +34,7 @@ export function openAiSearch(name, toastFn) {
   let copied = false;
   if (cfg.copy || (p && p.copyOnly)) { try { navigator.clipboard.writeText(q).catch(() => {}); copied = true; } catch (e) { /* noop */ } }
   openTab(buildAiUrl(q, cfg));
+  openAiSearch.last = q; // 画面側で「コピー用の検索文」を出すため
   if (toastFn && copied) toastFn(p && p.copyOnly ? '検索文をコピーしました。開いた画面に貼り付けてください' : '検索文をコピーしました(AIモードで反映されない場合は貼り付けてください)', 4500);
 }
 export const imageUrl = (q) => `https://www.google.com/search?tbm=isch&q=${enc(q)}`;
@@ -51,7 +52,11 @@ const envText = (e) => (e === 'indoor' ? '屋内(室内の窓辺・室温管理)
 export const aiPrompt = (name, env = getEnv()) => `植物「${name}」について、日本の本州の平地で${envText(env)}を前提に、次の項目を日本語で簡潔に教えてください。\n${RESEARCH_ITEMS.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n成長サイクルと肥料の推奨時期は1〜12月の月で示してください。液肥はハイポネックスを使う前提で希釈倍率を具体的に(例: 1000倍・2週間に1回)、追肥は遅効性肥料(置き肥など)の量の目安を示してください。信頼できる情報源も示してください。`;
 /** 通常のGoogle検索用(短いキーワード) */
 export const speciesQuery = (name, env = getEnv()) => `${name} ${envLabel(env)}栽培 学名 原産地 適温 最低温度 最高温度 湿度 日照 水やり 成長期 休眠期 植え替え`;
-export const openTab = (url) => { window.open(url, '_blank', 'noopener,noreferrer'); };
+/** 別の新しいタブで開く。通常のリンクのクリックとして開くので、アプリ内の小窓ではなく(端末のブラウザの)新規タブになりやすい */
+export const openTab = (url) => {
+  const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.style.display = 'none';
+  document.body.append(a); a.click(); a.remove();
+};
 
 export const DEFAULT_MODEL = 'gemini-flash-latest';
 

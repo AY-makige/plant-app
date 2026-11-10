@@ -260,7 +260,14 @@ export async function renderForm(root, id, params) {
     h('div', { class: 'field env-field' }, h('span', { class: 'lbl' }, '栽培環境(AI検索の前提)'), envToggle()),
     h('div', { class: 'row gap wrap' },
       h('button', { class: 'btn small', type: 'button', onclick: () => { const n = needName(); if (n) openTab(googleUrl(speciesQuery(n))); } }, icon('search', 16), 'Google検索'),
-      h('button', { class: 'btn small', type: 'button', onclick: () => { const n = needName(); if (n) openAiSearch(n, toast); } }, icon('sparkle', 16), 'Google AIモード'),
+      h('button', { class: 'btn small', type: 'button', onclick: () => {
+        const n = needName(); if (!n) return;
+        openAiSearch(n, toast);
+        const q = openAiSearch.last || ''; aiOut.innerHTML = '';
+        const ta = h('textarea', { readonly: true, rows: 6, class: 'ai-q' }, q);
+        aiOut.append(h('div', { class: 'warn caution' }, h('strong', null, 'AIモードの検索文'), h('p', { class: 'muted' }, '新しいタブでGoogleが開きます。検索文は自動でコピー済みです。入力欄が空のときは貼り付けてください。'), ta,
+          h('button', { class: 'btn small', type: 'button', onclick: async () => { try { await navigator.clipboard.writeText(q); toast('コピーしました'); } catch (er) { ta.select(); document.execCommand && document.execCommand('copy'); toast('コピーしました'); } } }, '検索文をもう一度コピー')));
+      } }, icon('sparkle', 16), 'Google AIモード'),
       h('button', { class: 'btn small', type: 'button', onclick: () => { const n = needName(); if (n) openTab(imageUrl(n + ' 植物')); } }, '画像を探す'), aiBtn), aiOut);
   // 植物の名前(流通名・呼び名)は「ネットで調べる」の上に置く
   const nameFields = h('div', { class: 'grid2 name-fields' },
