@@ -1,7 +1,7 @@
 // tasks.js — 管理タスク(水やり / 液体肥料 / 実施履歴 / 次回予定)
 import { h, sprite, empty, confirmBox, fmtDate, relDays, stageClass, icon, toast, C } from './ui.js';
 import { db } from './db.js';
-import { loadCtx, deleteLog, recordCare } from './data.js';
+import { loadCtx, deleteLog, recordCare, recordSkip } from './data.js';
 import { careModal, quickCare } from './care.js';
 import { avatar } from './plants.js';
 
@@ -14,6 +14,10 @@ export function taskRow(ctx, t, onDone) {
     h('div', { class: 'task-main' }, h('a', { class: 'task-name', href: `#/plants/${p.id}` }, t.name),
       h('div', { class: 'task-meta' }, h('span', { class: 'kind ' + t.kind }, icon(t.kind === 'water' ? 'drop' : 'flask', 14), label), C.isDormant(p) ? h('span', { class: 'mini-badge dorm' }, '休眠期') : null,
         h('span', { class: 'due-chip' + sc }, relDays(t.daysLeft, t.kind)), sc && t.daysLeft !== 0 ? h('small', { class: 'muted' }, relDays(t.daysLeft)) : null)),
+    t.kind === 'fert' ? h('button', { class: 'btn small ghost skip-btn', type: 'button', 'aria-label': `${t.name}の液肥を今回はスキップ`, onclick: async () => {
+      const log = await recordSkip(p); const n = C.nextDue(await db.get('plants', p.id), 'fert');
+      toast(`${t.name}の液肥をスキップしました(次回 ${n.date ? n.date.slice(5).replace('-', '/') : '—'})`, 6000, { label: '元に戻す', fn: async () => { await deleteLog(log); onDone && onDone(); } }); onDone && onDone();
+    } }, 'スキップ') : null,
     h('button', { class: 'icon-btn sm', type: 'button', 'aria-label': `${t.name}の${label}を日付指定で記録`, onclick: () => careModal(p, t.kind, onDone) }, icon('edit', 18)),
     h('button', { class: 'check-btn ' + t.kind, type: 'button', 'aria-label': `${t.name}の${label}を実施済みにする`, onclick: async () => { row.classList.add('done'); await quickCare(p, t.kind, onDone); } }, icon('check', 24)));
   return row;
@@ -48,7 +52,7 @@ export async function renderTasks(root) {
     let lastDate = '';
     for (const l of logs.slice(0, 200)) {
       if (l.date !== lastDate) { lastDate = l.date; body.append(h('h3', { class: 'group-h' }, fmtDate(l.date))); }
-      body.append(h('div', { class: 'card log row between' }, h('div', null, h('span', { class: 'kind ' + l.kind }, icon(l.kind === 'water' ? 'drop' : 'flask', 14), l.kind === 'water' ? '水やり' : '肥料'), ' ', h('a', { href: `#/plants/${l.plantId}` }, ctx.names[l.plantId] || '(削除済み)'), ' ', l.time || '',
+      body.append(h('div', { class: 'card log row between' }, h('div', null, h('span', { class: 'kind ' + l.kind }, icon(l.kind === 'water' ? 'drop' : 'flask', 14), l.kind === 'water' ? '水やり' : (l.skipped ? '肥料(スキップ)' : '肥料')), ' ', h('a', { href: `#/plants/${l.plantId}` }, ctx.names[l.plantId] || '(削除済み)'), ' ', l.time || '',
         h('div', { class: 'muted' }, [l.method, l.amount, l.fertType, l.dilution].filter(Boolean).join(' / ')), l.note ? h('div', null, l.note) : null),
       h('button', { class: 'icon-btn', 'aria-label': '削除', onclick: async () => { if (await confirmBox('この履歴を削除します。次回予定日は再計算されます。', '削除', true)) { await deleteLog(l); rerender(); } } }, icon('trash', 20))));
     }
@@ -59,7 +63,7 @@ export async function renderTasks(root) {
       h('button', { class: 'seg-b' + (sub === k ? ' on' : ''), type: 'button', role: 'tab', 'aria-selected': sub === k, onclick: () => { sessionStorage.setItem('taskSub', k); rerender(); } }, l))));
     if (sub === 'today') {
       /* 今日: スケジュール(間隔)が決まっていない植物を並べ、チェックしたものを今日実施した記録にする */
-      const t0 = C.today();
+      const t0 = C.today(); const givenToday = new Set((await db.all('logs')).filter((l) => l.date === t0 && l.kind === tab && !l.skipped).map((l) => l.plantId));
       // 表示の切り替え: off=スケジュールなしの植物 / all=すべて / sched=スケジュールが組まれている植物のみ(イレギュラーな実施の記録用)
       const mode = ['all', 'sched'].includes(sessionStorage.getItem('taskTodayMode')) ? sessionStorage.getItem('taskTodayMode') : 'off';
       const showAll = mode === 'all';
@@ -72,7 +76,7 @@ export async function renderTasks(root) {
       body.append(h('p', { class: 'muted hint' }, `${mode === 'all' ? 'すべての植物の一覧です。' : mode === 'sched' ? 'スケジュールが組まれている植物の一覧です。' : 'スケジュールが決まっていない植物の一覧です。'}今日${label}をした植物にチェックを入れて「記録する」を押すと、最終${label}日が今日になります。`));
       if (!unsched.length) { body.append(empty(tab === 'water' ? 'wateringcan' : 'mister', mode === 'off' ? 'スケジュールが決まっていない植物はありません' : mode === 'sched' ? 'スケジュールが組まれている植物はありません' : '植物がありません')); }
       else {
-        const checks = unsched.map((p) => { const cfg = p[tab] || {}; const done = cfg.last === t0; return { p, done, el: h('input', { type: 'checkbox', disabled: done, 'aria-label': `${ctx.names[p.id]}に${label}をした` }) }; });
+        const checks = unsched.map((p) => { const cfg = p[tab] || {}; const done = givenToday.has(p.id); return { p, done, el: h('input', { type: 'checkbox', disabled: done, 'aria-label': `${ctx.names[p.id]}に${label}をした` }) }; });
         const cnt = h('span', null, '0'); const btn = h('button', { class: 'btn primary', type: 'button', disabled: true }, '選択した植物に記録する');
         const upd = () => { const n = checks.filter((c) => c.el.checked).length; cnt.textContent = n; btn.disabled = !n; btn.textContent = n ? `${n}件に${label}を記録する` : '選択した植物に記録する'; };
         checks.forEach((c) => c.el.addEventListener('change', upd));

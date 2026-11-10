@@ -27,6 +27,13 @@ export async function recordCare(plant, kind, entry) {
   return log;
 }
 
+/** 液肥のスキップ(株の状態を見て今回は与えない)。実施はしていないが、間隔のカウントは今日からやり直す */
+export async function recordSkip(plant, date) {
+  const log = { id: uid(), plantId: plant.id, kind: 'fert', skipped: true, date: date || C.today(), time: new Date().toTimeString().slice(0, 5), amount: '', method: '', fertType: '', dilution: '', note: 'スキップ(与えず、間隔をリセット)', dormant: C.isDormant(plant), ts: Date.now() };
+  await db.put('logs', log); await syncLast(plant.id, 'fert');
+  return log;
+}
+
 /** ログから最終実施日を再同期(ログ削除時も使う) */
 export async function syncLast(plantId, kind) {
   const plant = await db.get('plants', plantId);

@@ -50,7 +50,7 @@ export async function renderCalendar(root) {
     if (overdue) { if (t0 >= mStart && t0 <= mEnd) add(t0, { p, kind, over: true }); cur = C.addDays(t0, n.interval); }
     while (C.diffDays(cur, mEnd) <= 0 && guard++ < 400) { if (C.diffDays(cur, mStart) >= 0) add(cur, { p, kind, proj: cur !== n.date }); cur = C.addDays(cur, n.interval); }
   }
-  for (const l of logs) if (l.date >= mStart && l.date <= mEnd && (!state.sel.size || state.sel.has(l.plantId)) && ctx.names[l.plantId]) add(l.date, { p: { id: l.plantId }, kind: l.kind, done: true });
+  for (const l of logs) if (!l.skipped && l.date >= mStart && l.date <= mEnd && (!state.sel.size || state.sel.has(l.plantId)) && ctx.names[l.plantId]) add(l.date, { p: { id: l.plantId }, kind: l.kind, done: true });
 
   const nav = h('div', { class: 'cal-nav' },
     h('button', { class: 'btn small', 'aria-label': '前の月', onclick: () => { state.m--; if (state.m < 1) { state.m = 12; state.y--; } state.day = null; rerender(); } }, '‹'),

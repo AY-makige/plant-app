@@ -394,3 +394,4 @@ main{padding-bottom:calc(var(--nav-h) + 32px + var(--safe-b))}
 .d-hero.has-photo{height:min(86vw,420px);background:var(--g3)}
 .d-hero.has-photo::before{content:'';position:absolute;inset:-24px;background:var(--hero-bg) center/cover no-repeat;filter:blur(20px) saturate(1.05)}
 .d-hero.has-photo .avatar.dh{position:relative;object-fit:contain;padding-bottom:26px;box-sizing:border-box}
+.skip-btn{flex:none;white-space:nowrap;padding:.2rem .6rem;min-height:36px}

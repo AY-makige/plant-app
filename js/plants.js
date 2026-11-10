@@ -1,7 +1,7 @@
 // plants.js — ライブラリー(一覧・詳細・登録/編集)
 import { h, sprite, icon, empty, field, opt, monthChips, mixLine, modal, confirmBox, toast, photoInput, fmtDate, relDays, stageClass, ownStart, lifespanText, PLANT_SPRITES, SPRITE_GROUPS, resolveSprite, MONTHS, C } from './ui.js';
 import { db, uid } from './db.js';
-import { loadCtx, deleteLog, deletePlant } from './data.js';
+import { loadCtx, deleteLog, deletePlant, recordSkip } from './data.js';
 import { googleUrl, aiPrompt, openAiSearch, imageUrl, RESEARCH_ITEMS, FIELDS, ENVS, getEnv, setEnv, speciesQuery, openTab, geminiConfig, geminiLookup, toFormValues } from './search.js';
 import { careModal } from './care.js';
 import { repotModal, soilCard, currentSoilMap } from './soil.js';
@@ -115,7 +115,11 @@ export async function renderDetail(root, id) {
             // 次回予定日 = 最終実施日(履歴・カレンダー)+ 間隔
             (() => { const n = C.nextDue(p, kind); const dl = C.diffDays(n.date, C.today());
               return h('div', { class: 'next-due' }, h('span', { class: 'muted' }, '次回予定日'), h('strong', null, fmtDate(n.date)), h('small', { class: 'muted' }, n.noLast ? '(最終の記録がないため今日が基準)' : `(${relDays(dl, kind)})`),
-                h('small', { class: 'muted' }, `最終${kind === 'water' ? '水やり' : '液肥'}日: ${n.last ? fmtDate(n.last) : '未記録'}`)); })()]);
+                h('small', { class: 'muted' }, `最終${kind === 'water' ? '水やり' : '液肥'}日: ${n.last ? fmtDate(n.last) : '未記録'}`)); })(),
+            kind === 'fert' ? h('button', { class: 'btn small ghost', type: 'button', onclick: async () => {
+              if (!(await confirmBox('株の状態を見て、今回の液肥はスキップします。\n与えた記録にはならず、間隔のカウントが今日からやり直しになります。', 'スキップする'))) return;
+              const log = await recordSkip(p); toast('液肥をスキップしました(間隔をリセット)', 6000, { label: '元に戻す', fn: async () => { await deleteLog(log); reload(); } }); reload();
+            } }, '今回の液肥はスキップ') : null]);
   };
   const row = (k, v) => (v || v === 0 ? h('div', { class: 'kv' }, h('dt', null, k), h('dd', null, v)) : null);
   const temp = (v) => (v !== '' && v != null ? `${v}℃` : '未設定');
@@ -148,7 +152,7 @@ export async function renderDetail(root, id) {
       h('div', { class: 'card' }, h('div', { class: 'row between' }, h('h2', null, '植え替え・用土履歴'), h('button', { class: 'btn small', onclick: () => repotModal(p, null, reload) }, '＋ 記録')),
         repots.length ? repots.map((r) => h('div', { class: 'log' }, h('strong', null, fmtDate(r.date)), ' ', h('span', null, r.recipeName || '配合記録なし'), h('div', { class: 'muted' }, mixLine(r.mix)), r.potSize ? h('div', { class: 'muted' }, '鉢: ' + r.potSize) : null, r.note ? h('div', null, r.note) : null, r.photo ? h('img', { class: 'thumb', src: r.photo, alt: '' }) : null)) : h('p', { class: 'muted' }, '記録なし')),
       h('div', { class: 'card' }, h('h2', null, `実施履歴(${logs.length}件)`),
-        logs.length ? logs.slice(0, 60).map((l) => h('div', { class: 'log row between' }, h('div', null, h('strong', null, `${fmtDate(l.date)} ${l.time || ''}`), ' ', h('span', { class: 'kind ' + l.kind }, icon(l.kind === 'water' ? 'drop' : 'flask', 14), l.kind === 'water' ? '水やり' : '肥料'), l.dormant ? h('span', { class: 'badge st-dorm' }, '休眠期') : null,
+        logs.length ? logs.slice(0, 60).map((l) => h('div', { class: 'log row between' }, h('div', null, h('strong', null, `${fmtDate(l.date)} ${l.time || ''}`), ' ', h('span', { class: 'kind ' + l.kind }, icon(l.kind === 'water' ? 'drop' : 'flask', 14), l.kind === 'water' ? '水やり' : (l.skipped ? '肥料(スキップ)' : '肥料')), l.dormant ? h('span', { class: 'badge st-dorm' }, '休眠期') : null,
           h('div', { class: 'muted' }, [l.method, l.amount, l.fertType, l.dilution].filter(Boolean).join(' / ')), l.note ? h('div', null, l.note) : null),
         h('button', { class: 'icon-btn', 'aria-label': '履歴を削除', onclick: async () => { if (await confirmBox('この履歴を削除します。最終実施日・次回予定日は残りの履歴から再計算されます。', '削除', true)) { await deleteLog(l); reload(); } } }, icon('trash', 20)))) : h('p', { class: 'muted' }, '記録なし')));
   };
