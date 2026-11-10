@@ -107,7 +107,8 @@ export async function renderDetail(root, id) {
   const sched = (kind) => {
     const n = C.nextDue(p, kind); const cfg = p[kind === 'water' ? 'water' : 'fert'] || {};
     const label = kind === 'water' ? '水やり' : '液体肥料'; const dl = n.date ? C.diffDays(n.date, C.today()) : null;
-    return h('div', { class: 'card sched' }, h('div', { class: 'row between' }, h('h3', { class: 'kind ' + kind }, icon(kind === 'water' ? 'drop' : 'flask', 18), label), dorm ? h('span', { class: 'badge st-dorm' }, '休眠期設定') : null),
+    return h('div', { class: 'card sched' }, h('div', { class: 'row between' }, h('h3', { class: 'kind ' + kind }, icon(kind === 'water' ? 'drop' : 'flask', 18), label), h('div', { class: 'row gap' }, dorm ? h('span', { class: 'badge st-dorm' }, '休眠期設定') : null,
+        h('a', { class: 'icon-btn sm', href: `#/plants/${p.id}/edit`, 'aria-label': `${label}の設定を編集`, title: '編集', onclick: () => { try { sessionStorage.setItem('editFocus', kind); } catch (e) { /* noop */ } } }, icon('edit', 18)))),
       n.stopped ? h('p', { class: 'muted' }, '休眠期のため停止中') : !n.date ? h('p', { class: 'muted' }, '間隔が未設定です(編集で設定)') :
         h('div', null, h('div', { class: 'big-date' }, fmtDate(n.date), h('small', null, ` (${relDays(dl, kind)})`)),
           h('small', { class: 'muted' }, `${n.interval}日ごと / 最終: ${cfg.last ? fmtDate(cfg.last) : '未記録'}`)),
@@ -309,6 +310,11 @@ export async function renderForm(root, id, params) {
       h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'f_stop', checked: f.stopInDormant !== false }), ' 休眠期は施肥を停止する(通知も止まります)')),
     h('div', { class: 'btn-row sticky' }, h('a', { class: 'btn ghost', href: editing ? `#/plants/${id}` : '#/plants' }, 'キャンセル'),
       h('button', { class: 'btn primary', type: 'button', onclick: save }, editing ? '変更を保存' : '登録する')));
+  // 詳細画面の「水やり/液体肥料」の編集ボタンから来たときは、その設定欄を開いて見える位置へ
+  try {
+    const fk = sessionStorage.getItem('editFocus'); sessionStorage.removeItem('editFocus');
+    if (fk && editing) { const key = fk === 'fert' ? '⑥' : '⑤'; const d = [...form.querySelectorAll('details.sec')].find((x) => (x.querySelector('summary') || {}).textContent.startsWith(key)); if (d) { d.open = true; setTimeout(() => d.scrollIntoView({ block: 'start' }), 150); } }
+  } catch (e) { /* noop */ }
 
   async function save() {
     const fd = new FormData(form); const g = (n) => (fd.get(n) ?? '').toString().trim();
