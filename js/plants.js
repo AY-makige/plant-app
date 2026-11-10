@@ -208,7 +208,7 @@ export async function renderForm(root, id, params) {
   const speciesFields = () => {
     const wrap = h('div', { id: 'species-fields' });
     wrap.append(
-      h('div', { class: 'grid2' }, field('流通名 *', v('commonName', sp.commonName, 'text', { placeholder: '例: ハエトリソウ' })), field('正式名称・学名', v('sciName', sp.sciName, 'text', { placeholder: '例: Dionaea muscipula' }))),
+      field('正式名称・学名', v('sciName', sp.sciName, 'text', { placeholder: '例: Dionaea muscipula' })),
       field('本来の生息地・原産地', v('origin', sp.origin, 'text', { placeholder: '例: 北米(ノースカロライナ州)の湿地' })),
       h('div', { class: 'grid3' }, field('適温', v('tempOpt', sp.tempOpt, 'text', { placeholder: '例: 15〜28℃' })), field('最低温度(℃)', v('tempMin', sp.tempMin, 'number', { step: '0.5' })), field('最高温度(℃)', v('tempMax', sp.tempMax, 'number', { step: '0.5' }))),
       h('div', { class: 'grid3' }, field('湿度', v('humidity', sp.humidity, 'text', { placeholder: '例: 60〜80%' })), field('日照条件', v('light', sp.light, 'text', { placeholder: '例: 日なた・直射日光' })), field('水分条件', v('moisture', sp.moisture, 'text', { placeholder: '例: 常に湿らせる' }))),
@@ -228,6 +228,7 @@ export async function renderForm(root, id, params) {
   });
   spSelect.addEventListener('change', () => {
     sp = ctx.sp[spSelect.value] || { cycle: {} };
+    if (form.elements.commonName) form.elements.commonName.value = sp.commonName || ''; // 選んだ種類の流通名を反映
     const nw = speciesFields(); spWrap.replaceWith(nw); spWrap = nw;
     const d = sp.defaults; // 種類の既定値を個体の設定へ
     if (d && !editing) { const set = (n, val) => { const el = form.elements[n]; if (el && val != null) el.value = val; }; ['outdoorMin', 'indoorTemp', 'highTemp'].forEach((k) => set(k, (d.temps || {})[k])); set('w_interval', (d.water || {}).interval); set('w_amount', (d.water || {}).amount); set('w_dormantInterval', (d.water || {}).dormantInterval); set('w_dormantAmount', (d.water || {}).dormantAmount); set('f_interval', (d.fert || {}).interval); set('f_type', (d.fert || {}).type); set('f_dilution', (d.fert || {}).dilution); set('f_amount', (d.fert || {}).amount); toast('この種類の前回設定を引き継ぎました'); }
@@ -254,19 +255,22 @@ export async function renderForm(root, id, params) {
     } }, icon('sparkle', 16), 'AIで自動入力(Gemini)')
     : h('a', { class: 'btn small ghost', href: '#/settings' }, icon('sparkle', 16), 'AI自動入力を設定する');
   const lookup = h('div', { class: 'lookup' }, h('strong', null, 'ネットで調べる'),
-    h('p', { class: 'muted' }, '植物名を入力して、次の項目を調べられます。'),
-    h('div', { class: 'chips research' }, RESEARCH_ITEMS.map((x) => h('span', { class: 'chip-s' }, x))),
+    h('details', { class: 'research-fold' }, h('summary', null, '植物名を入力して、次の項目を調べられます'),
+      h('div', { class: 'chips research' }, RESEARCH_ITEMS.map((x) => h('span', { class: 'chip-s' }, x)))),
     h('div', { class: 'field env-field' }, h('span', { class: 'lbl' }, '栽培環境(AI検索の前提)'), envToggle()),
     h('div', { class: 'row gap wrap' },
       h('button', { class: 'btn small', type: 'button', onclick: () => { const n = needName(); if (n) openTab(googleUrl(speciesQuery(n))); } }, icon('search', 16), 'Google検索'),
       h('button', { class: 'btn small', type: 'button', onclick: () => { const n = needName(); if (n) openAiSearch(n, toast); } }, icon('sparkle', 16), 'Google AIモード'),
       h('button', { class: 'btn small', type: 'button', onclick: () => { const n = needName(); if (n) openTab(imageUrl(n + ' 植物')); } }, '画像を探す'), aiBtn), aiOut);
+  // 植物の名前(流通名・呼び名)は「ネットで調べる」の上に置く
+  const nameFields = h('div', { class: 'grid2 name-fields' },
+    field('流通名 *', v('commonName', sp.commonName, 'text', { placeholder: '例: ハエトリソウ' })),
+    field('個体の呼び名(任意)', v('nickname', p.nickname, 'text', { placeholder: '例: 玄関の子 / ①' }), '未入力なら流通名が表示されます'));
   const w = p.water || {}, f = p.fert || {};
   const sec = (title, open, ...kids) => h('details', { class: 'card sec', open }, h('summary', null, title), h('div', { class: 'sec-body' }, kids));
   form.append(
-    sec('① 種類・植物情報', true, lookup, field('登録済みの種類から選ぶ', spSelect, '同じ種類を複数持っている場合は、ここで既存の種類を選ぶと別個体として登録できます'), spWrap),
+    sec('① 種類・植物情報', true, nameFields, lookup, field('登録済みの種類から選ぶ', spSelect, '同じ種類を複数持っている場合は、ここで既存の種類を選ぶと別個体として登録できます'), spWrap),
     sec('② 個体情報', true,
-      field('個体の呼び名(任意)', v('nickname', p.nickname, 'text', { placeholder: '例: 玄関の子 / ①' }), '未入力なら流通名が表示されます'),
       field('写真', photo.el), h('p', { class: 'muted' }, '写真が無い場合は、下のイラストを代わりに使えます'), spriteGrid,
       field('栽培場所', h('select', { name: 'location' }, h('option', { value: '' }, '未設定'), LOCS.map(([k, l]) => opt(k, l, p.location)))),
       field('現在の状態', h('select', { name: 'status' }, STATUSES.map((s) => opt(s, s, p.status))), '育成中=通常 / 成長中=成長期 / 休眠中=休眠期(休眠中にすると休眠期の水やり設定が使われます)'),
