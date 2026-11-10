@@ -1,5 +1,5 @@
 // plants.js — ライブラリー(一覧・詳細・登録/編集)
-import { h, sprite, icon, empty, field, opt, monthChips, mixLine, modal, confirmBox, toast, photoInput, fmtDate, relDays, stageClass, ownStart, lifespanText, PLANT_SPRITES, SPRITE_GROUPS, resolveSprite, MONTHS, C } from './ui.js';
+import { h, sprite, icon, empty, field, opt, monthChips, mixLine, modal, confirmBox, toast, photoInput, fmtDate, relDays, stageClass, ownStart, purchaseText, lifespanText, PLANT_SPRITES, SPRITE_GROUPS, resolveSprite, MONTHS, C } from './ui.js';
 import { db, uid, getSettings } from './db.js';
 import { loadCtx, deleteLog, deletePlant, recordSkip } from './data.js';
 import { googleUrl, aiPrompt, openAiSearch, imageUrl, RESEARCH_ITEMS, FIELDS, ENVS, getEnv, setEnv, speciesQuery, openTab, geminiConfig, geminiLookup, toFormValues } from './search.js';
@@ -138,7 +138,7 @@ export async function renderDetail(root, id) {
       h('div', { class: 'card' }, h('h2', null, '基本情報'), h('dl', null,
         row('原産地・生息地', s.origin), row('適温', s.tempOpt), row('最低〜最高温度', [s.tempMin, s.tempMax].some((x) => x !== '' && x != null) ? `${s.tempMin ?? '—'}℃ 〜 ${s.tempMax ?? '—'}℃` : ''),
         row('湿度', s.humidity), row('日照', s.light), row('水分条件', s.moisture), row('追肥(遅効性肥料)', s.slowFert), row('液肥(ハイポネックス)', s.liquidDilution),
-        row('購入時期', p.purchaseDate ? fmtDate(p.purchaseDate) : p.purchaseYear ? `${p.purchaseYear}年 ${p.purchaseSeason || ''}` : ''), row('所有期間', start ? lifespanText(start, C.today()) : ''),
+        row('購入時期', purchaseText(p)), row('所有期間', start ? lifespanText(start, C.today(), 'owned') : ''),
         row('栽培場所', locLabel(p.location)), row('購入価格', p.price ? `¥${Number(p.price).toLocaleString()}` : ''), row('購入先', p.shop), row('状態メモ', p.statusNote), row('備考', p.notes))),
       h('div', { class: 'card danger-zone' }, h('h2', null, '植物の終了'),
         h('p', { class: 'muted' }, '枯れてしまった場合は「削除」ではなくメモリアルへ移動すると、記録として残せます。'),
@@ -301,6 +301,27 @@ export async function renderForm(root, id, params) {
   const lastField = (name, label, val, what) => (editing
     ? h('div', { class: 'field' }, h('span', { class: 'lbl' }, label), h('input', { type: 'hidden', name, value: val || '' }), h('div', { class: 'readonly-val row between' }, h('span', null, val ? fmtDate(val) : '未記録'), val ? h('button', { class: 'btn small ghost', type: 'button', onclick: (e) => { e.currentTarget.closest('.field').querySelector('input[type=hidden]').value = ''; e.currentTarget.previousSibling.textContent = '未記録(保存すると消えます)'; e.currentTarget.remove(); } }, '日付を消す') : null), h('small', { class: 'muted' }, `${what}をした日は、詳細画面の記録ボタンから日付を指定して記録します`))
     : field(label, v(name, val, 'date')));
+  /* 購入時期: 年 → 季節 → 月(季節の範囲) → 日(分からなければ 月前半=7日 / 月後半=21日 を基準日に) */
+  const buy = (() => {
+    let y0 = p.purchaseYear, mo0 = p.purchaseMonth, d0 = '', half0 = p.purchaseHalf || '', se0 = p.purchaseSeason || '';
+    if (p.purchaseDate) { const [yy, mm, dd] = p.purchaseDate.split('-').map(Number); y0 = yy; mo0 = mm; d0 = dd; se0 = C.seasonOfMonth(mm); half0 = ''; }
+    const yIn = v('purchaseYear', y0, 'number', { min: 1990, max: 2100, placeholder: '2026', inputmode: 'numeric' });
+    const seSel = h('select', { name: 'purchaseSeason' }, opt('', '不明', se0), ['春', '夏', '秋', '冬'].map((x) => opt(x, `${x}(${C.SEASON_MONTHS[x].join('・')}月)`, se0)));
+    const moSel = h('select', { name: 'purchaseMonth' });
+    const dIn = v('purchaseDay', d0, 'number', { min: 1, max: 31, placeholder: '分かれば', inputmode: 'numeric' });
+    const half = ['', 'first', 'second'].map((k) => ({ k, el: h('input', { type: 'radio', name: 'purchaseHalf', value: k, checked: half0 === k }) }));
+    const halfBox = h('div', { class: 'half-row' }, half.map(({ k, el }) => h('label', { class: 'check' }, el, { '': ' 不明', first: ' 月前半(7日扱い)', second: ' 月後半(21日扱い)' }[k])));
+    const fillMonths = (keep) => { const ms = C.SEASON_MONTHS[seSel.value] || []; moSel.replaceChildren(opt('', ms.length ? '不明' : '(先に季節を選ぶ)', ''), ...ms.map((m) => opt(String(m), `${m}月`, ''))); moSel.disabled = !ms.length; if (keep && ms.includes(Number(keep))) moSel.value = String(keep); };
+    const sync = () => { const hasM = !!moSel.value; dIn.disabled = !hasM; if (!hasM) dIn.value = ''; const hasD = !!dIn.value; half.forEach(({ el }) => { el.disabled = !hasM || hasD; }); halfBox.classList.toggle('dim', !hasM || hasD); if (!hasM || hasD) half[0].el.checked = true; if (moSel.value && dIn.value) { const mm = Number(moSel.value), yy = Number(yIn.value) || 2000; dIn.max = new Date(yy, mm, 0).getDate(); } };
+    seSel.addEventListener('change', () => { fillMonths(); sync(); }); moSel.addEventListener('change', sync); dIn.addEventListener('input', sync); yIn.addEventListener('input', sync);
+    fillMonths(mo0); sync();
+    const el = h('div', { class: 'buy-box' },
+      h('div', { class: 'grid2' }, field('① 購入した年', yIn), field('② 季節', seSel)),
+      h('div', { class: 'grid2' }, field('③ 月(季節の範囲)', moSel), field('④ 日(分かれば)', dIn)),
+      field('日が分からないとき', halfBox, '月前半は7日、月後半は21日として、享年の計算に使います(記録には「約」と表示されます)'));
+    return el;
+  })();
+  const buyBox = buy;
   const sugg = h('div', { class: 'sp-suggest hidden' });
   const normN = (x) => String(x || '').replace(/[\s\u3000]/g, '').toLowerCase();
   const checkSugg = () => {
@@ -321,7 +342,7 @@ export async function renderForm(root, id, params) {
       field('現在の状態', h('select', { name: 'status' }, STATUSES.map((s) => opt(s, s, p.status))), '育成中=通常 / 成長中=成長期 / 休眠中=休眠期(休眠中にすると休眠期の水やり設定が使われます)'),
       field('状態メモ', v('statusNote', p.statusNote, 'text', { placeholder: '療養中の理由など' }))),
     sec('③ 購入情報', false,
-      h('div', { class: 'grid3' }, field('購入年', v('purchaseYear', p.purchaseYear, 'number', { min: 1990, max: 2100, placeholder: '2026' })), field('購入季節', h('select', { name: 'purchaseSeason' }, opt('', '不明', p.purchaseSeason), ['春', '夏', '秋', '冬'].map((x) => opt(x, x, p.purchaseSeason)))), field('購入日(分かれば)', v('purchaseDate', p.purchaseDate, 'date'))),
+      buyBox,
       h('div', { class: 'grid2' }, field('購入価格(円)', v('price', p.price, 'number', { min: 0 })), field('購入先', v('shop', p.shop))), field('備考', h('textarea', { name: 'notes', rows: 2 }, p.notes || ''))),
     sec('④ 水やり設定', true,
       h('div', { class: 'grid2' }, field('水やり間隔(日)', v('w_interval', w.interval, 'number', { min: 1, placeholder: '例: 3' })), lastField('w_last', '最終水やり日', w.last, '水やり')),
@@ -343,6 +364,13 @@ export async function renderForm(root, id, params) {
     const fd = new FormData(form); const g = (n) => (fd.get(n) ?? '').toString().trim();
     const commonName = g('commonName'), nickname = g('nickname');
     if (!commonName && !nickname) { toast('流通名か呼び名のどちらかを入力してください'); form.elements.commonName.focus(); return; }
+    // 購入時期の整理(年・月・日のうち日まで揃えば購入日として保存。日が不明なら 月前半/月後半)
+    const n0 = (k) => { const x = g(k); return x === '' ? '' : Number(x); };
+    const py = n0('purchaseYear'), pm = n0('purchaseMonth'), pd = n0('purchaseDay');
+    if (pm && !py) { toast('購入した年を入力してください'); form.elements.purchaseYear.focus(); return; }
+    if (pd && !pm) { toast('日を入れるときは、先に季節と月を選んでください'); return; }
+    if (pd && (pd < 1 || pd > new Date(py, pm, 0).getDate())) { toast(`${pm}月に ${pd}日はありません`); form.elements.purchaseDay.focus(); return; }
+    const purchase = { purchaseYear: py, purchaseSeason: pm ? C.seasonOfMonth(pm) : g('purchaseSeason'), purchaseMonth: pm, purchaseHalf: pm && !pd ? g('purchaseHalf') : '', purchaseDate: py && pm && pd ? `${py}-${String(pm).padStart(2, '0')}-${String(pd).padStart(2, '0')}` : '' };
     const cycle = {}; CYCLE.forEach(([k]) => { cycle[k] = fd.getAll('cycle_' + k).map(Number); });
     const nn = (n) => { const x = g(n); return x === '' ? '' : Number(x); };
     let species = ctx.sp[g('speciesId')] || { id: uid() };
@@ -352,7 +380,7 @@ export async function renderForm(root, id, params) {
     species.defaults = { water: { interval: water.interval, amount: water.amount, dormantInterval: water.dormantInterval, dormantAmount: water.dormantAmount }, fert: { interval: fert.interval, type: fert.type, dilution: fert.dilution, amount: fert.amount } };
     await db.put('species', species);
     const plant = { ...(editing || {}), id: editing ? editing.id : uid(), speciesId: species.id, nickname, photo: photo.value, sprite: spriteSel, status: g('status'), location: g('location'), statusNote: g('statusNote'),
-      purchaseYear: nn('purchaseYear'), purchaseSeason: g('purchaseSeason'), purchaseDate: g('purchaseDate'), price: nn('price'), shop: g('shop'), notes: g('notes'), water, fert, createdAt: editing ? editing.createdAt : Date.now() };
+      ...purchase, price: nn('price'), shop: g('shop'), notes: g('notes'), water, fert, createdAt: editing ? editing.createdAt : Date.now() };
     await db.put('plants', plant);
     toast(editing ? '保存しました' : '登録しました'); location.hash = `#/plants/${plant.id}`;
   }

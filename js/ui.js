@@ -261,11 +261,9 @@ export const stageClass = (kind, n) => { const s = C.stageOf(kind, n); return s 
 
 export const SEASON_MONTH = { 春: 4, 夏: 7, 秋: 10, 冬: 1 };
 /** 所有開始日(推定含む) */
-export function ownStart(p) {
-  if (p.purchaseDate) return { date: p.purchaseDate, approx: false };
-  if (p.purchaseYear) return { date: `${p.purchaseYear}-${String(SEASON_MONTH[p.purchaseSeason] || 7).padStart(2, '0')}-15`, approx: true };
-  return null;
-}
+export const ownStart = (p) => C.ownStart(p);
+/** 購入時期の表示(日まで分かる→日付、月まで→「2026年10月前半(約)」) */
+export const purchaseText = (p) => { const st = C.ownStart(p); return st && !st.approx ? fmtDate(st.date) : C.purchaseLabel(p); };
 /** 暦ベースの年月日(日付のみ・タイムゾーンに依存しない)。開始日 > 終了日 なら null */
 export function calendarSpan(startStr, endStr) {
   const P = (x) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(x || '')); return m ? { y: +m[1], m: +m[2], d: +m[3] } : null; };
@@ -279,14 +277,19 @@ export function calendarSpan(startStr, endStr) {
   const a = addM(n); const days = Math.round((endU - U(a.y, a.m, a.d)) / 86400000);
   return { y: Math.floor(n / 12), m: n % 12, d: days, total: Math.round((endU - U(s.y, s.m, s.d)) / 86400000) };
 }
-export function lifespanText(startInfo, endDate) {
+/** mode 'age'(メモリアルの享年): 1年以上→「N歳(日数)」、1年未満→「Nヶ月(日数)」 / mode 'owned'(飼育中の所有期間): 「N年Nヶ月(日数)」 */
+export function lifespanText(startInfo, endDate, mode = 'age') {
   if (!startInfo || !endDate) return '不明';
-  const sp = calendarSpan(startInfo.date, endDate); if (!sp) return '不明';
-  const parts = [];
-  if (sp.y) parts.push(`${sp.y}年`); if (sp.m) parts.push(`${sp.m}ヶ月`);
-  if (!startInfo.approx && (sp.d || !parts.length)) parts.push(`${sp.d}日`);
-  if (startInfo.approx && !parts.length) parts.push('0ヶ月');
-  return (startInfo.approx ? '約' : '') + parts.join('') + `(${sp.total}日)`;
+  let sp = calendarSpan(startInfo.date, endDate);
+  if (!sp && startInfo.approx && startInfo.monthStart && endDate >= startInfo.monthStart) sp = { y: 0, m: 0, d: 0, total: 0 }; // 基準日より前でも購入月内なら0日
+  if (!sp) return '不明';
+  const pre = startInfo.approx ? '約' : '';
+  if (mode === 'owned') {
+    const parts = []; if (sp.y) parts.push(`${sp.y}年`); if (sp.m) parts.push(`${sp.m}ヶ月`);
+    if (!startInfo.approx && (sp.d || !parts.length)) parts.push(`${sp.d}日`); if (startInfo.approx && !parts.length) parts.push('0ヶ月');
+    return pre + parts.join('') + `(${sp.total}日)`;
+  }
+  return pre + (sp.y >= 1 ? `${sp.y}歳` : `${sp.m}ヶ月`) + `(${sp.total}日)`;
 }
 
 export function empty(icon, msg, action) {

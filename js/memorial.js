@@ -1,5 +1,5 @@
 // memorial.js — 枯死した植物の記録・メモリアル
-import { h, sprite, icon, graveImg, mixLine, empty, field, modal, confirmBox, toast, photoInput, fmtDate, ownStart, lifespanText, C } from './ui.js';
+import { h, sprite, icon, graveImg, mixLine, empty, field, modal, confirmBox, toast, photoInput, fmtDate, ownStart, purchaseText, lifespanText, C } from './ui.js';
 import { db } from './db.js';
 import { buryPlant, reviveGrave, loadCtx } from './data.js';
 
@@ -16,7 +16,7 @@ function envSummary(p, s) {
 
 export function graveForm(plant, species, names, onDone) {
   modal(`「${names[plant.id]}」を枯死として記録`, (b, close) => {
-    const startD = plant.purchaseDate || '';
+    const startD = C.purchaseMin(plant);
     const date = h('input', { type: 'date', value: C.today(), max: C.today(), ...(startD ? { min: startD } : {}) });
     const photo = photoInput(plant.photo, '遺影の写真を選ぶ');
     const rows = CAUSES.map((c) => ({ c, chk: h('input', { type: 'checkbox' }), cert: h('select', { 'aria-label': c + 'の確度' }, h('option', { value: '推測' }, '推測'), h('option', { value: '確定' }, '確定')) }));
@@ -31,7 +31,7 @@ export function graveForm(plant, species, names, onDone) {
       h('div', { class: 'btn-row' }, h('button', { class: 'btn ghost', type: 'button', onclick: close }, 'キャンセル'),
         h('button', { class: 'btn primary', type: 'button', onclick: async () => {
           if (!date.value) return toast('枯死日を入力してください');
-          if (startD && date.value < startD) return toast('枯死日が購入日(' + startD + ')より前になっています');
+          if (startD && date.value < startD) return toast('枯死日が購入時期(' + startD.replace(/-/g, '/') + ' 以降)より前になっています');
           if (date.value > C.today()) return toast('枯死日が未来の日付になっています');
           if (b.dataset.busy) return; b.dataset.busy = '1';
           const causes = rows.filter((r) => r.chk.checked).map((r) => ({ cause: r.c, certainty: r.cert.value }));
@@ -64,7 +64,7 @@ export async function renderGrave(root, id) {
   root.append(h('div', { class: 'page-head' }, h('a', { class: 'back', href: '#/memorial' }, '← メモリアル')),
     h('div', { class: 'detail-hero card grave' }, gravePhoto(g, 'hero'), h('div', null, h('h1', null, g.name), h('div', null, s.commonName), h('small', { class: 'muted sci' }, s.sciName || ''), h('div', { class: 'mt' }, h('span', { class: 'badge' }, `享年 ${span(g)}`)))),
     h('div', { class: 'card' }, h('h2', null, '記録'), h('dl', null,
-      row('所有開始', start ? (start.approx ? `約 ${g.plant.purchaseYear}年 ${g.plant.purchaseSeason || ''}` : fmtDate(start.date)) : ''), row('枯死日', fmtDate(g.deathDate)), row('所有期間(享年)', span(g)),
+      row('所有開始', purchaseText(g.plant)), row('枯死日', fmtDate(g.deathDate)), row('享年', span(g)),
       row('原因(確定=確定情報 / 推測)', g.causes.length ? g.causes.map((c) => `${c.cause}(${c.certainty})`).join('、') : '未入力'), row('原因メモ', g.causeNote), row('当時の育成環境', g.env), row('備考・反省点', g.notes))),
     h('div', { class: 'card' }, h('h2', null, `管理記録(${(g.lastCare || []).length}件)`), (g.lastCare || []).length ? g.lastCare.map((l) => h('div', { class: 'log' }, h('strong', null, fmtDate(l.date)), ' ', h('span', { class: 'badge' }, l.kind === 'water' ? '水やり' : (l.skipped ? '肥料(スキップ)' : '肥料')), h('div', { class: 'muted' }, [l.method, l.amount, l.fertType, l.dilution].filter(Boolean).join(' / ')))) : h('p', { class: 'muted' }, '記録なし'),
       (g.repots || []).length ? [h('h3', null, '最後の植え替え'), g.repots.slice(0, 1).map((r) => h('div', { class: 'log' }, fmtDate(r.date) + ' ' + (r.recipeName || ''), h('div', { class: 'muted' }, mixLine(r.mix))))] : null),

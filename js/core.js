@@ -152,5 +152,28 @@
   }
   const C0 = () => ymd(new Date());
 
-  root.PlantCore = { DAY, ymd, parse, today, addDays, diffDays, num, isDormant, effWater, effFert, nextDue, buildTasks, computeWarnings, computeDueNotifications, DEFAULT_LABELS, mergeLabels, setLabels, getLabels, stageOf, stageLabel, notifyCfg, notifStageOf };
+  /* 購入日(所有開始日): 年→季節→月→日。日が不明なら 月前半=7日・月後半=21日 を基準日として扱う */
+  const SEASON_MONTHS = { 春: [3, 4, 5], 夏: [6, 7, 8], 秋: [9, 10, 11], 冬: [12, 1, 2] };
+  const seasonOfMonth = (m) => Object.keys(SEASON_MONTHS).find((k) => SEASON_MONTHS[k].includes(Number(m))) || '';
+  const HALF_DAY = { first: 7, second: 21 };
+  function ownStart(p) {
+    if (!p) return null;
+    if (p.purchaseDate) return { date: p.purchaseDate, approx: false };
+    const y = num(p.purchaseYear); if (!y) return null;
+    const m = num(p.purchaseMonth);
+    if (m) return { date: `${y}-${pad(m)}-${pad(HALF_DAY[p.purchaseHalf] || 15)}`, approx: true, monthStart: `${y}-${pad(m)}-01` };
+    const lm = { 春: 4, 夏: 7, 秋: 10, 冬: 1 }[p.purchaseSeason] || 7; // 旧データ(年+季節のみ)
+    return { date: `${y}-${pad(lm)}-15`, approx: true };
+  }
+  /** 枯死日として許せる最小の日付(購入日が不明確なときは購入月の1日)。無ければ '' */
+  function purchaseMin(p) { const s = ownStart(p); return s ? (s.approx ? (s.monthStart || '') : s.date) : ''; }
+  function purchaseLabel(p) {
+    const s = ownStart(p); if (!s) return '';
+    if (!s.approx) { const [y, m, d] = s.date.split('-').map(Number); return `${y}/${m}/${d}`; }
+    const m = num(p.purchaseMonth);
+    if (m) return `${p.purchaseYear}年${m}月${p.purchaseHalf === 'first' ? '前半' : p.purchaseHalf === 'second' ? '後半' : ''}(約)`;
+    return `${p.purchaseYear}年 ${p.purchaseSeason || ''}(約)`;
+  }
+
+  root.PlantCore = { SEASON_MONTHS, seasonOfMonth, HALF_DAY, ownStart, purchaseMin, purchaseLabel, DAY, ymd, parse, today, addDays, diffDays, num, isDormant, effWater, effFert, nextDue, buildTasks, computeWarnings, computeDueNotifications, DEFAULT_LABELS, mergeLabels, setLabels, getLabels, stageOf, stageLabel, notifyCfg, notifStageOf };
 })(typeof self !== 'undefined' ? self : window);

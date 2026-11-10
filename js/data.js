@@ -66,7 +66,7 @@ export async function buryPlant(plant, species, info, names) {
   const cur = await db.get('plants', plant.id);
   if (!cur) throw new Error('この植物はすでにメモリアルへ移動済みか、削除されています');
   if ((await db.all('graves')).some((g) => g.plant && g.plant.id === plant.id)) throw new Error('この植物はすでにメモリアルに登録されています');
-  const start = cur.purchaseDate || '';
+  const start = C.purchaseMin(cur);
   if (start && info.deathDate && info.deathDate < start) throw new Error('枯死日が購入(入手)日より前になっています');
   const logs = (await db.byPlant('logs', plant.id)).sort((a, b) => b.date.localeCompare(a.date));
   const repots = (await db.byPlant('repots', plant.id)).sort((a, b) => b.date.localeCompare(a.date));

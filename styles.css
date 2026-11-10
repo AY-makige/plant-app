@@ -404,3 +404,5 @@ main{padding-bottom:calc(var(--nav-h) + 32px + var(--safe-b))}
 .skip-btn{white-space:nowrap;padding:.15rem .7rem;min-height:32px;font-size:.82rem;margin-top:.35rem}
 
 details.sec{scroll-margin-top:76px}.diag-row.info .mark{color:var(--muted)}
+
+.half-row{display:flex;gap:.8rem;flex-wrap:wrap}.half-row.dim{opacity:.5}.buy-box .field{margin-bottom:.4rem}
