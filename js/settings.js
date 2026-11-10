@@ -173,4 +173,17 @@ export async function renderSettings(root) {
       h('p', { class: 'muted', style: { margin: 0 } }, 'タップすると大きい画像で見られます。'))));
 
   root.append(h('div', { class: 'card' }, h('h2', null, 'このアプリについて'), h('p', { class: 'muted' }, 'データはこの端末のブラウザ内(IndexedDB)に保存されます。別の端末とは自動同期されません。端末を変える場合はバックアップ→復元を使ってください。')));
+  /* 各項目を開閉式に(開閉状態は端末に記憶) */
+  let st = {}; try { st = JSON.parse(localStorage.getItem('pk-settings-open') || '{}'); } catch (e) {}
+  [...root.querySelectorAll(':scope > .card')].forEach((card) => {
+    const hd = card.querySelector(':scope > h2'); if (!hd) return;
+    const title = hd.textContent;
+    const d = h('details', { class: 'set-fold' });
+    const sm = h('summary', null, title);
+    const kids = [...card.childNodes].filter((n) => n !== hd);
+    d.append(sm, ...kids);
+    if (st[title]) d.open = true;
+    d.addEventListener('toggle', () => { st[title] = d.open; try { localStorage.setItem('pk-settings-open', JSON.stringify(st)); } catch (e) {} });
+    hd.replaceWith(d);
+  });
 }
