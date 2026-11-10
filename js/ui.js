@@ -151,15 +151,87 @@ export function fileToDataURL(file, max = 900, q = 0.82) {
   });
 }
 
+
+/** 画像をトリミング(ドラッグで位置・つまむ/スライダーで拡大)。File または dataURL を受け取り、JPEG dataURL を返す。キャンセルなら null */
+export function cropImage(src, { max = 900, q = 0.82 } = {}) {
+  return new Promise((res) => {
+    const isFile = typeof src !== 'string';
+    const url = isFile ? URL.createObjectURL(src) : src;
+    const done = (v) => { if (isFile) URL.revokeObjectURL(url); res(v); };
+    const img = new Image();
+    img.onerror = () => { toast('画像を読み込めませんでした'); done(null); };
+    img.onload = () => {
+      const RATIOS = [['正方形', 1], ['縦長 4:5', 4 / 5], ['横長 5:4', 5 / 4]];
+      const W = Math.min(320, Math.max(220, window.innerWidth - 64));
+      const st = { ratio: 1, s: 1, min: 1, tx: 0, ty: 0, zoom: 1 };
+      const fr = () => ({ w: st.ratio >= 1 ? W : W * st.ratio * 1, h: st.ratio >= 1 ? W / st.ratio : W });
+      const frame = h('div', { class: 'crop-frame' });
+      const pic = h('img', { src: url, alt: '', draggable: false, class: 'crop-img' });
+      frame.append(pic);
+      const clamp = () => {
+        const { w, h: fh } = fr(); const iw = img.naturalWidth * st.s, ih = img.naturalHeight * st.s;
+        st.tx = Math.min(0, Math.max(w - iw, st.tx)); st.ty = Math.min(0, Math.max(fh - ih, st.ty));
+      };
+      const apply = () => { clamp(); pic.style.width = img.naturalWidth * st.s + 'px'; pic.style.height = img.naturalHeight * st.s + 'px'; pic.style.transform = `translate(${st.tx}px,${st.ty}px)`; };
+      const setScale = (ns, cx, cy) => { // (cx,cy)=フレーム内の固定点
+        const old = st.s; st.s = Math.min(st.min * 4, Math.max(st.min, ns));
+        st.tx = cx - ((cx - st.tx) / old) * st.s; st.ty = cy - ((cy - st.ty) / old) * st.s;
+        st.zoom = st.s / st.min; slider.value = st.zoom; apply();
+      };
+      const layout = (reset) => {
+        const { w, h: fh } = fr(); frame.style.width = w + 'px'; frame.style.height = fh + 'px';
+        st.min = Math.max(w / img.naturalWidth, fh / img.naturalHeight);
+        if (reset) { st.s = st.min; st.tx = (w - img.naturalWidth * st.s) / 2; st.ty = (fh - img.naturalHeight * st.s) / 2; st.zoom = 1; slider.value = 1; }
+        else { st.s = Math.max(st.s, st.min); }
+        apply();
+      };
+      const slider = h('input', { type: 'range', min: 1, max: 4, step: 0.01, value: 1, 'aria-label': '拡大', class: 'crop-zoom', oninput: (e) => { const { w, h: fh } = fr(); setScale(st.min * Number(e.target.value), w / 2, fh / 2); } });
+      // ドラッグ / ピンチ
+      const ptrs = new Map(); let lastD = 0;
+      frame.addEventListener('pointerdown', (e) => { frame.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); lastD = 0; });
+      frame.addEventListener('pointermove', (e) => {
+        if (!ptrs.has(e.pointerId)) return; const p = ptrs.get(e.pointerId);
+        if (ptrs.size === 1) { st.tx += e.clientX - p.x; st.ty += e.clientY - p.y; apply(); }
+        ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); const r = frame.getBoundingClientRect(); if (lastD) setScale(st.s * (d / lastD), (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top); lastD = d; }
+      });
+      const up = (e) => { ptrs.delete(e.pointerId); lastD = 0; };
+      frame.addEventListener('pointerup', up); frame.addEventListener('pointercancel', up);
+      frame.addEventListener('wheel', (e) => { e.preventDefault(); const r = frame.getBoundingClientRect(); setScale(st.s * (e.deltaY < 0 ? 1.1 : 1 / 1.1), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+      const segs = RATIOS.map(([l, r]) => h('button', { type: 'button', class: 'seg-b' + (r === 1 ? ' on' : ''), onclick: (e) => { st.ratio = r; segs.forEach((b) => b.classList.toggle('on', b === e.currentTarget)); layout(true); } }, l));
+      let settled = false;
+      modal('写真をトリミング', (b, close) => {
+        const finish = (v) => { if (settled) return; settled = true; close(); done(v); };
+        b.append(
+          h('p', { class: 'muted' }, 'ドラッグで位置を動かし、つまむ(またはスライダー)で大きさを変えます。'),
+          h('div', { class: 'seg crop-ratio' }, segs), h('div', { class: 'crop-stage' }, frame),
+          h('div', { class: 'crop-zoom-row' }, h('span', null, '−'), slider, h('span', null, '＋')),
+          h('div', { class: 'btn-row' },
+            h('button', { class: 'btn ghost', type: 'button', onclick: () => finish(null) }, 'キャンセル'),
+            h('button', { class: 'btn', type: 'button', onclick: async () => { if (!settled) { settled = true; close(); try { res(isFile ? await fileToDataURL(src, max, q) : src); } catch (e) { toast(e.message); res(null); } if (isFile) URL.revokeObjectURL(url); } } }, 'トリミングしない'),
+            h('button', { class: 'btn primary', type: 'button', onclick: () => {
+              const { w, h: fh } = fr(); const sx = -st.tx / st.s, sy = -st.ty / st.s, sw = w / st.s, sh = fh / st.s;
+              const k = Math.min(1, max / Math.max(sw, sh)); const c = document.createElement('canvas'); c.width = Math.round(sw * k); c.height = Math.round(sh * k);
+              c.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+              finish(c.toDataURL('image/jpeg', q));
+            } }, 'この範囲で使う')));
+      }, { onClose: () => { if (!settled) { settled = true; done(null); } } });
+      layout(true);
+    };
+    img.src = url;
+  });
+}
+
 /** 写真入力ウィジェット: .value に dataURL を保持 */
 export function photoInput(initial, label = '写真を選ぶ / 撮影') {
   const state = { value: initial || '' };
   const prev = h('div', { class: 'photo-prev' });
   const draw = () => { prev.innerHTML = ''; if (state.value) prev.append(h('img', { src: state.value, alt: '写真プレビュー' })); else prev.append(h('span', { class: 'muted' }, '写真なし')); };
-  const file = h('input', { type: 'file', accept: 'image/*', class: 'hidden', onchange: async (e) => { const f = e.target.files[0]; if (!f) return; try { state.value = await fileToDataURL(f); draw(); } catch (err) { toast(err.message); } } });
+  const file = h('input', { type: 'file', accept: 'image/*', class: 'hidden', onchange: async (e) => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { const v = await cropImage(f); if (v) { state.value = v; draw(); } } catch (err) { toast(err.message); } } });
   const el = h('div', { class: 'photo-input' }, prev,
     h('div', { class: 'btn-row left' },
       h('button', { class: 'btn small', type: 'button', onclick: () => file.click() }, label),
+      h('button', { class: 'btn small', type: 'button', onclick: async () => { if (!state.value) return toast('先に写真を選んでください'); const v = await cropImage(state.value); if (v) { state.value = v; draw(); } } }, 'トリミング'),
       h('button', { class: 'btn small ghost', type: 'button', onclick: () => { state.value = ''; draw(); } }, '削除')), file);
   draw();
   return { el, get value() { return state.value; } };
