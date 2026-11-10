@@ -2,7 +2,7 @@
 import { h, sprite, icon, empty, field, opt, monthChips, mixLine, modal, confirmBox, toast, photoInput, fmtDate, relDays, stageClass, ownStart, lifespanText, PLANT_SPRITES, SPRITE_GROUPS, resolveSprite, MONTHS, C } from './ui.js';
 import { db, uid } from './db.js';
 import { loadCtx, deleteLog, deletePlant } from './data.js';
-import { googleUrl, openAiSearch, imageUrl, RESEARCH_ITEMS, FIELDS, ENVS, getEnv, setEnv, speciesQuery, openTab, geminiConfig, geminiLookup, toFormValues } from './search.js';
+import { googleUrl, aiPrompt, openAiSearch, imageUrl, RESEARCH_ITEMS, FIELDS, ENVS, getEnv, setEnv, speciesQuery, openTab, geminiConfig, geminiLookup, toFormValues } from './search.js';
 import { careModal } from './care.js';
 import { repotModal, soilCard, currentSoilMap } from './soil.js';
 import { graveForm } from './memorial.js';
@@ -237,6 +237,14 @@ export async function renderForm(root, id, params) {
 
   /* ネット検索 / AI自動入力 */
   const aiOut = h('div', { class: 'ai-out' });
+  /** 検索文(コピー用)を画面に表示。clipboard にも自動コピー */
+  const copyText = async (q) => { try { await navigator.clipboard.writeText(q); return true; } catch (er) { return false; } };
+  const showQuery = (title, note, q) => {
+    aiOut.innerHTML = '';
+    const ta = h('textarea', { readonly: true, rows: q.length > 120 ? 6 : 2, class: 'ai-q' }, q);
+    aiOut.append(h('div', { class: 'warn caution' }, h('strong', null, title), h('p', { class: 'muted' }, note), ta,
+      h('button', { class: 'btn small', type: 'button', onclick: async () => { if (!(await copyText(q))) { ta.select(); try { document.execCommand('copy'); } catch (er) { /* noop */ } } toast('コピーしました'); } }, '検索文をもう一度コピー')));
+  };
   const nameNow = () => ((form.elements.commonName && form.elements.commonName.value) || (form.elements.nickname && form.elements.nickname.value) || '').trim();
   const needName = () => { const n = nameNow(); if (!n) toast('先に流通名(植物の名前)を入力してください'); return n; };
   const fillFromAI = (r) => {
@@ -251,7 +259,10 @@ export async function renderForm(root, id, params) {
   const aiBtn = gcfg.key
     ? h('button', { class: 'btn small primary', type: 'button', onclick: async (e) => {
       const n = needName(); if (!n) return; const b = e.currentTarget; b.disabled = true; const old = b.textContent; b.textContent = 'AIが調べています…'; aiOut.innerHTML = '';
-      try { fillFromAI(await geminiLookup(n)); } catch (err) { aiOut.append(h('div', { class: 'warn urgent' }, err.message)); } finally { b.disabled = false; b.textContent = old; }
+      const q = aiPrompt(n);
+      const qBox = () => { const ta = h('textarea', { readonly: true, rows: 6, class: 'ai-q' }, q); return h('details', { class: 'research-fold' }, h('summary', null, 'AIに送った質問文を見る・コピー'), ta,
+        h('button', { class: 'btn small', type: 'button', onclick: async () => { if (!(await copyText(q))) { ta.select(); try { document.execCommand('copy'); } catch (er) { /* noop */ } } toast('コピーしました'); } }, '質問文をコピー')); };
+      try { fillFromAI(await geminiLookup(n)); aiOut.append(qBox()); } catch (err) { aiOut.append(h('div', { class: 'warn urgent' }, err.message), h('p', { class: 'muted' }, '質問文をコピーして、ほかのAI(Google AIモードなど)に貼り付けて調べることもできます。'), qBox()); } finally { b.disabled = false; b.textContent = old; }
     } }, icon('sparkle', 16), 'AIで自動入力(Gemini)')
     : h('a', { class: 'btn small ghost', href: '#/settings' }, icon('sparkle', 16), 'AI自動入力を設定する');
   const lookup = h('div', { class: 'lookup' }, h('strong', null, 'ネットで調べる'),
@@ -259,14 +270,15 @@ export async function renderForm(root, id, params) {
       h('div', { class: 'chips research' }, RESEARCH_ITEMS.map((x) => h('span', { class: 'chip-s' }, x)))),
     h('div', { class: 'field env-field' }, h('span', { class: 'lbl' }, '栽培環境(AI検索の前提)'), envToggle()),
     h('div', { class: 'row gap wrap' },
-      h('button', { class: 'btn small', type: 'button', onclick: () => { const n = needName(); if (n) openTab(googleUrl(speciesQuery(n))); } }, icon('search', 16), 'Google検索'),
+      h('button', { class: 'btn small', type: 'button', onclick: async () => {
+        const n = needName(); if (!n) return; const q = speciesQuery(n);
+        const ok = await copyText(q); openTab(googleUrl(q));
+        showQuery('Google検索のキーワード', '新しいタブでGoogle検索が開きます。' + (ok ? 'キーワードは自動でコピー済みです。' : '') + '必要なら貼り付けてください。', q);
+      } }, icon('search', 16), 'Google検索'),
       h('button', { class: 'btn small', type: 'button', onclick: () => {
         const n = needName(); if (!n) return;
         openAiSearch(n, toast);
-        const q = openAiSearch.last || ''; aiOut.innerHTML = '';
-        const ta = h('textarea', { readonly: true, rows: 6, class: 'ai-q' }, q);
-        aiOut.append(h('div', { class: 'warn caution' }, h('strong', null, 'AIモードの検索文'), h('p', { class: 'muted' }, '新しいタブでGoogleが開きます。検索文は自動でコピー済みです。入力欄が空のときは貼り付けてください。'), ta,
-          h('button', { class: 'btn small', type: 'button', onclick: async () => { try { await navigator.clipboard.writeText(q); toast('コピーしました'); } catch (er) { ta.select(); document.execCommand && document.execCommand('copy'); toast('コピーしました'); } } }, '検索文をもう一度コピー')));
+        showQuery('AIモードの検索文', '新しいタブでGoogleが開きます。検索文は自動でコピー済みです。入力欄が空のときは貼り付けてください。', openAiSearch.last || '');
       } }, icon('sparkle', 16), 'Google AIモード'),
       h('button', { class: 'btn small', type: 'button', onclick: () => { const n = needName(); if (n) openTab(imageUrl(n + ' 植物')); } }, '画像を探す'), aiBtn), aiOut);
   // 植物の名前(流通名・呼び名)は「ネットで調べる」の上に置く
