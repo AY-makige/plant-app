@@ -87,7 +87,7 @@ function drawAlerts(box, ws) {
   const worst = ws[0].level;
   box.append(h('details', { class: 'alert-card ' + worst, open: worst === 'urgent' || worst === 'warning' },
     h('summary', null, icon('thermo', 22), h('strong', null, `温度警告 ${ws.length}件`), h('span', { class: 'sm-note' }, '週間予報と設定温度の比較')),
-    ws.map((w) => h('div', { class: 'warn-row ' + w.level }, h('span', { class: 'lv' }, w.label), h('div', null, h('a', { href: `#/plants/${w.plantId}` }, w.name), h('div', { class: 'muted' }, `${w.msg}(${fmtShort(w.date)})`)))),
+    ws.map((w) => h('div', { class: 'warn-row ' + w.level }, h('span', { class: 'lv' }, w.label), w.plantId ? h('div', null, h('a', { href: `#/plants/${w.plantId}` }, w.name), h('div', { class: 'muted' }, `${w.msg}(${fmtShort(w.date)})`)) : h('div', null, h('strong', null, w.msg)))),
     h('p', { class: 'note' }, '※ 温度警告は栽培判断の補助です。風・鉢内温度・日当たり・植物の状態も考慮して、屋外管理を続けるか室内へ移すか判断してください。')));
 }
 

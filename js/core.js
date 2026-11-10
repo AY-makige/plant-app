@@ -58,30 +58,30 @@
     const out = [];
     if (!daily || !daily.length) return out;
     margin = num(margin) ?? 3;
+    const T = temps || {}; const outdoorMin = num(T.outdoorMin), indoor = num(T.indoorTemp), high = num(T.highTemp);
+    // ① 設定より特に寒い・暑い日: 種類・屋内外に関係なく共通のお知らせにし、他の気温アラートは出さない
+    const td = today(); const when = (date) => (date === td ? '本日' : `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`);
+    const extremes = [];
+    const cold = outdoorMin != null ? daily.find((d) => d.tmin != null && d.tmin < outdoorMin) : null;
+    const hot = high != null ? daily.find((d) => d.tmax != null && d.tmax >= high) : null;
+    if (cold) extremes.push({ plantId: null, name: '', kind: 'extreme', level: 'urgent', label: '特に寒い', date: cold.date, temp: cold.tmin, threshold: outdoorMin, msg: `${when(cold.date)}は特に寒いため、低温に注意してください(最低 ${cold.tmin}℃)` });
+    if (hot) extremes.push({ plantId: null, name: '', kind: 'extreme', level: 'heat', label: '特に暑い', date: hot.date, temp: hot.tmax, threshold: high, msg: `${when(hot.date)}は特に暑いため、高温に注意してください(最高 ${hot.tmax}℃)` });
+    if (extremes.length) return extremes;
+    // ② 通常の警告は屋外管理の植物だけ(屋内管理の植物は外気温の警告対象外。場所が未設定の植物は屋外扱い)
     for (const p of plants) {
-      const T = temps || {}; const outdoorMin = num(T.outdoorMin), indoor = num(T.indoorTemp), high = num(T.highTemp);
-      {
-        const rank = { urgent: 3, warning: 2, caution: 1 };
-        let best = null;
-        for (const d of daily) {
-          if (d.tmin == null) continue;
-          let lv = null, th = null;
-          if (outdoorMin != null && d.tmin < outdoorMin) { lv = 'urgent'; th = outdoorMin; }
-          else if (indoor != null && d.tmin < indoor) { lv = 'warning'; th = indoor; }
-          else if (indoor != null && d.tmin <= indoor + margin) { lv = 'caution'; th = indoor; }
-          if (lv && (!best || rank[lv] > rank[best.level])) best = { level: lv, date: d.date, temp: d.tmin, threshold: th };
-        }
-        if (best) {
-          const label = { urgent: '緊急', warning: '警告', caution: '注意' }[best.level];
-          const msg = best.level === 'urgent' ? `屋外管理の最低温度 ${outdoorMin}℃ を下回る予報(最低 ${best.temp}℃)`
-            : best.level === 'warning' ? `室内取り込み目安 ${indoor}℃ を下回る予報(最低 ${best.temp}℃)`
-              : `室内取り込み目安 ${indoor}℃ に接近(最低 ${best.temp}℃)`;
-          out.push({ plantId: p.id, name: names[p.id], kind: 'cold', ...best, label, msg });
-        }
+      if (p.location === 'indoor') continue;
+      const rank = { warning: 2, caution: 1 };
+      let best = null;
+      for (const d of daily) {
+        if (d.tmin == null || indoor == null) continue;
+        let lv = null;
+        if (d.tmin < indoor) lv = 'warning'; else if (d.tmin <= indoor + margin) lv = 'caution';
+        if (lv && (!best || rank[lv] > rank[best.level])) best = { level: lv, date: d.date, temp: d.tmin, threshold: indoor };
       }
-      if (high != null) {
-        const hot = daily.filter((d) => d.tmax != null && d.tmax >= high).sort((a, b) => b.tmax - a.tmax)[0];
-        if (hot) out.push({ plantId: p.id, name: names[p.id], kind: 'heat', level: 'heat', label: '高温', date: hot.date, temp: hot.tmax, threshold: high, msg: `高温注意温度 ${high}℃ 以上の予報(最高 ${hot.tmax}℃)` });
+      if (best) {
+        const label = { warning: '警告', caution: '注意' }[best.level];
+        const msg = best.level === 'warning' ? `室内取り込み目安 ${indoor}℃ を下回る予報(最低 ${best.temp}℃)` : `室内取り込み目安 ${indoor}℃ に接近(最低 ${best.temp}℃)`;
+        out.push({ plantId: p.id, name: names[p.id], kind: 'cold', ...best, label, msg });
       }
     }
     const order = { urgent: 0, warning: 1, heat: 2, caution: 3 };

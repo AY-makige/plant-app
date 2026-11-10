@@ -108,9 +108,9 @@ export async function renderSettings(root) {
   margin.addEventListener('change', async () => { s.margin = Number(margin.value); await saveSettings(s); toast('保存しました'); });
   root.append(h('div', { class: 'card' }, h('h2', null, '温度警告(全ての植物に共通)'),
     h('p', { class: 'muted' }, 'ここで決めた温度を、登録している全ての植物の天気予報の警告に使います。株ごとの設定は不要です。'),
-    field('屋外管理の最低温度(℃)', tIn('outdoorMin'), 'これを下回る予報 = 緊急'),
-    field('室内取り込み目安(℃)', tIn('indoorTemp'), '下回る予報 = 警告 / 接近 = 注意'),
-    field('高温注意温度(℃)', tIn('highTemp'), 'この温度以上になる予報 = 高温'),
+    field('屋外管理の最低温度(℃)', tIn('outdoorMin'), 'これを下回る日は、全ての植物に「特に寒い」を表示(他の気温警告は出ません)'),
+    field('室内取り込み目安(℃)', tIn('indoorTemp'), '屋外の植物だけ: 下回る予報 = 警告 / 接近 = 注意(屋内の植物は対象外)'),
+    field('高温注意温度(℃)', tIn('highTemp'), 'この温度以上になる日は、全ての植物に「特に暑い」を表示(他の気温警告は出ません)'),
     field('「注意」にする余裕温度(℃)', margin, '室内取り込み目安 + この値 以下になる予報で「注意」を表示します')));
 
   /* 予定の表示名(水やり・液肥) */

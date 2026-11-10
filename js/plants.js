@@ -1,6 +1,6 @@
 // plants.js — ライブラリー(一覧・詳細・登録/編集)
 import { h, sprite, icon, empty, field, opt, monthChips, mixLine, modal, confirmBox, toast, photoInput, fmtDate, relDays, stageClass, ownStart, lifespanText, PLANT_SPRITES, SPRITE_GROUPS, resolveSprite, MONTHS, C } from './ui.js';
-import { db, uid } from './db.js';
+import { db, uid, getSettings } from './db.js';
 import { loadCtx, deleteLog, deletePlant, recordSkip } from './data.js';
 import { googleUrl, aiPrompt, openAiSearch, imageUrl, RESEARCH_ITEMS, FIELDS, ENVS, getEnv, setEnv, speciesQuery, openTab, geminiConfig, geminiLookup, toFormValues } from './search.js';
 import { careModal } from './care.js';
@@ -101,7 +101,7 @@ export async function renderDetail(root, id) {
   const reload = () => { const y = window.scrollY; root.innerHTML = ''; renderDetail(root, id).then(() => window.scrollTo(0, y)); };
   const [logs, repots, fc, mats] = await Promise.all([db.byPlant('logs', id), db.byPlant('repots', id), db.kvGet('forecast', null), db.all('materials')]);
   logs.sort((a, b) => b.date.localeCompare(a.date) || b.ts - a.ts); repots.sort((a, b) => b.date.localeCompare(a.date));
-  const warns = fc ? C.computeWarnings([p], ctx.names, fc.data.daily, 3) : [];
+  const cfg = await getSettings(); const warns = fc ? C.computeWarnings([p], ctx.names, fc.data.daily, cfg.margin, cfg.temps) : [];
   const dorm = C.isDormant(p); const start = ownStart(p);
 
   const sched = (kind) => {
