@@ -225,7 +225,9 @@ export async function renderForm(root, id, params) {
     if (!e.target || e.target.name !== 'commonName' || spriteSel) return;
     const name = e.target.value.trim(); if (name.length < 2) return;
     const hit = PLANT_SPRITES.find(([, lab]) => name === lab || name.includes(lab.replace(/\(.*\)$/, '')));
-    if (hit) { pickSprite(hit[0]); if (catOf(hit[0]) !== spCat) showCat(catOf(hit[0])); const el = spOpts.get(hit[0]); el && el.scrollIntoView && el.scrollIntoView({ block: 'nearest' }); }
+    if (hit) { pickSprite(hit[0]); if (catOf(hit[0]) !== spCat) showCat(catOf(hit[0])); // ページ全体はスクロールさせず、イラスト一覧の枠の中だけを動かして選んだ絵を見える位置へ
+      const el = spOpts.get(hit[0]); const box = el && el.closest('.sprite-scroll');
+      if (box) requestAnimationFrame(() => { const er = el.getBoundingClientRect(), br = box.getBoundingClientRect(); if (er.top < br.top) box.scrollTop -= br.top - er.top; else if (er.bottom > br.bottom) box.scrollTop += er.bottom - br.bottom; }); }
   });
   spSelect.addEventListener('change', () => {
     sp = ctx.sp[spSelect.value] || { cycle: {} };
