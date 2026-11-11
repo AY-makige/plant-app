@@ -145,7 +145,7 @@ export function fileToDataURL(file, max = 900, q = 0.82) {
     img.onload = () => {
       const sc = Math.min(1, max / Math.max(img.width, img.height));
       const c = document.createElement('canvas'); c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
-      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      const cx = c.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height); cx.drawImage(img, 0, 0, c.width, c.height);
       URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', q));
     };
     img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('画像を読み込めませんでした')); };
@@ -214,7 +214,8 @@ export function cropImage(src, { max = 900, q = 0.82 } = {}) {
             h('button', { class: 'btn primary', type: 'button', onclick: () => {
               const { w, h: fh } = fr(); const sx = -st.tx / st.s, sy = -st.ty / st.s, sw = w / st.s, sh = fh / st.s;
               const k = Math.min(1, max / Math.max(sw, sh)); const c = document.createElement('canvas'); c.width = Math.round(sw * k); c.height = Math.round(sh * k);
-              c.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+              const cx = c.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height); // 透明PNGが黒くならないよう白地に描く
+              cx.drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
               finish(c.toDataURL('image/jpeg', q));
             } }, 'この範囲で使う')));
       }, { onClose: () => { if (!settled) { settled = true; done(null); } } });
