@@ -1,7 +1,8 @@
 // home.js — ホーム(今日の進捗・温度警告・タスク・天気・休眠期の植物)
-import { h, sprite, toast, fmtShort, WD, MONTHS, icon, C } from './ui.js';
+import { h, sprite, toast, fmtShort, WD, MONTHS, icon, C, confirmBox } from './ui.js';
 import { db, getSettings } from './db.js';
-import { loadCtx, moveToSeasonLoc, snoozeLocNotice } from './data.js';
+import { loadCtx, moveToSeasonLoc, snoozeLocNotice, bulkLoc } from './data.js';
+import * as AB from './autobackup.js';
 import { fetchForecast, fetchClimate, wmo } from './weather.js';
 import { taskRow } from './tasks.js';
 import { avatar } from './plants.js';
@@ -40,6 +41,18 @@ export async function renderHome(root) {
     warnStat, h('a', { class: 'stat', href: '#/plants' }, h('b', null, dorm.length), h('span', null, '休眠中'))));
 
   if (N.permission() === 'default') root.append(h('div', { class: 'banner' }, h('span', null, '通知を有効にすると、水やり・施肥の予定をお知らせします。'), h('button', { class: 'btn small primary', onclick: async () => { const r = await N.requestPermission(); toast(r === 'granted' ? '通知を有効にしました' : '通知は許可されませんでした(ホーム画面では予定を確認できます)'); rerender(); } }, '許可する')));
+  const bk = h('div', { class: 'banner-slot' }); root.append(bk);
+  AB.reminderState().then(async (st) => {
+    if (!st) return;
+    const cfg = await AB.getCfg(); const folder = AB.supported() && cfg.enabled && (await AB.folderName());
+    const msg = st.days == null ? 'まだバックアップを取っていません。' : `最後のバックアップから${st.days}日たっています。`;
+    bk.append(h('div', { class: 'banner' }, h('span', null, '💾 ' + msg + (folder ? '(フォルダへの保存に許可が必要かもしれません)' : '')),
+      h('div', { class: 'row gap' },
+        h('button', { class: 'btn small primary', type: 'button', onclick: async () => {
+          if (folder) { const r = await AB.backupNow(true); if (r.ok) { toast('フォルダにバックアップしました'); rerender(); return; } toast(r.reason === 'permission' ? 'フォルダへの許可が得られませんでした' : 'フォルダへ保存できませんでした: ' + (r.message || '')); return; }
+          location.hash = '#/settings'; } }, folder ? '今すぐ保存' : '設定で保存'),
+        h('button', { class: 'btn small ghost', type: 'button', onclick: async () => { await AB.snoozeReminder(3); bk.innerHTML = ''; } }, 'あとで'))));
+  }).catch(() => 0);
   if (canPrompt() && !isStandalone() && !sessionStorage.getItem('instHide')) root.append(h('div', { class: 'banner' }, h('span', null, 'ホーム画面に追加すると、アプリのように使えます。'), h('div', { class: 'row gap' }, h('button', { class: 'btn small primary', onclick: async () => { await promptInstall(); rerender(); } }, 'インストール'), h('button', { class: 'icon-btn sm', 'aria-label': '閉じる', onclick: () => { sessionStorage.setItem('instHide', '1'); rerender(); } }, '×'))));
   root.append(alerts);
 
@@ -91,6 +104,7 @@ function drawAlerts(box, ws, ctx, rerender) {
   box.append(h('details', { class: 'alert-card ' + worst, open: worst === 'urgent' || worst === 'warning' },
     h('summary', null, icon('thermo', 22), h('strong', null, `気温アラート ${ws.length}件`), h('span', { class: 'sm-note' }, '週間予報・設定温度・植物の居場所')),
     ws.map((w) => h('div', { class: 'warn-row ' + w.level }, h('span', { class: 'lv' }, w.label), w.plantId ? h('div', null, h('a', { href: `#/plants/${w.plantId}` }, w.name), h('div', { class: 'muted' }, w.date ? `${w.msg}(${fmtShort(w.date)})` : w.msg), w.kind === 'location' ? locButtons(ctx.plants.find((x) => x.id === w.plantId), rerender) : null) : h('div', null, h('strong', null, w.msg)))),
+    bulkBox(ws, ctx, rerender),
     h('p', { class: 'note' }, '※ 温度警告は栽培判断の補助です。風・鉢内温度・日当たり・植物の状態も考慮して、屋外管理を続けるか室内へ移すか判断してください。')));
 }
 
@@ -120,6 +134,17 @@ function climateBox(region) {
     } catch (e) { body.textContent = '取得できませんでした: ' + e.message; loaded = false; }
   });
   return box;
+}
+
+function bulkBox(ws, ctx, rerender) {
+  const ps = ws.filter((w) => w.kind === 'location').map((w) => ctx.plants.find((x) => x.id === w.plantId)).filter(Boolean);
+  if (ps.length < 2) return null;
+  const toIn = ps.filter((p) => C.effLocation(p) === 'indoor').length, toOut = ps.length - toIn;
+  const desc = [toIn ? `屋内へ ${toIn}株` : '', toOut ? `屋外へ ${toOut}株` : ''].filter(Boolean).join(' / ');
+  return h('div', { class: 'bulk-box' }, h('strong', null, `場所アラートをまとめて処理(${ps.length}株)`), h('small', { class: 'muted' }, desc),
+    h('div', { class: 'row gap wrap' },
+      h('button', { class: 'btn small primary', type: 'button', onclick: async () => { if (!(await confirmBox(`${ps.length}株すべてを移動した扱いにします(${desc})。\n実際に移動してから押してください。`, '移動した'))) return; await bulkLoc(ps, 'move'); toast(`${ps.length}株の場所を更新しました`); rerender(); } }, 'まとめて移動した'),
+      h('button', { class: 'btn small ghost', type: 'button', onclick: () => { bulkLoc(ps, 'snooze').then((n) => { toast(`まとめて「まだ大丈夫」にしました(${n}日後にまた知らせます)`); rerender(); }); } }, 'まとめてまだ大丈夫')));
 }
 
 function locButtons(p, rerender) {

@@ -63,6 +63,7 @@ export const db = {
     const data = { app: 'plant-keeper', version: 1, exportedAt: new Date().toISOString(), stores: {} };
     for (const s of STORES) data.stores[s] = await db.all(s);
     // APIキーはバックアップに含めない(共有時の漏えい防止)
+    data.stores.kv = data.stores.kv.filter((r) => r.key !== 'backupDir'); // フォルダのハンドルは書き出せない
     data.stores.kv = data.stores.kv.map((r) => (r.key === 'settings' && r.value && r.value.gemini ? { ...r, value: { ...r.value, gemini: { ...r.value.gemini, key: '' } } } : r));
     return data;
   },
@@ -81,6 +82,7 @@ export const db = {
   async importAll(data, mode = 'replace') {
     if (importing) throw new Error('別の復元処理が実行中です');
     const info = validateBackup(data); importing = true;
+    const keepDir = await db.get('kv', 'backupDir').catch(() => null);
     try {
       await db.atomic(STORES, (st) => {
         for (const s of STORES) {
@@ -89,6 +91,7 @@ export const db = {
           data.stores[s].forEach((r) => os.put(r));
         }
       });
+      if (keepDir && mode === 'replace') await db.put('kv', keepDir).catch(() => 0); // 自動バックアップ先の設定は復元しても残す
       return info;
     } finally { importing = false; }
   },

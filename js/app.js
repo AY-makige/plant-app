@@ -11,6 +11,7 @@ import { renderSettings } from './settings.js';
 import * as N from './notify.js';
 import { maybeOfferGuide } from './guide.js';
 import { applyAppIcon } from './appicon.js';
+import * as AB from './autobackup.js';
 import { applyTheme, toggleMode, resolvedMode } from './theme.js';
 
 const NAV = [['home', 'ホーム', 'home'], ['plants', 'ライブラリー', 'plants'], ['tasks', '水やり', 'drop'], ['calendar', 'カレンダー', 'calendar'], ['soil', '用土', 'soil'], ['memorial', 'メモリアル', 'grave']];
@@ -78,9 +79,7 @@ async function init() {
   const check = () => N.checkAndNotify().catch(() => 0);
   check(); document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
   setInterval(check, 5 * 60000);
-  // バックアップ促し: 3か月(90日)に一度だけ
-  const lb = await db.kvGet('lastBackup', null); const plants = await db.all('plants'); const nag = await db.kvGet('backupNag', null);
-  const age = (d) => (Date.now() - new Date(d).getTime()) / 86400000;
-  if (plants.length && (!lb || age(lb) > 90) && (!nag || age(nag) > 90)) { await db.kvSet('backupNag', window.PlantCore.today()); setTimeout(() => toast('💾 バックアップを取って3か月以上たちました(設定から保存できます)', 5000), 1500); }
+  // フォルダへの自動バックアップ(設定した間隔が過ぎていれば起動時に実行。促しはホームのバナーで表示)
+  AB.runIfDue().then((r) => { if (r && r.ok) toast('フォルダに自動バックアップしました', 2500); }).catch(() => 0);
 }
 init();

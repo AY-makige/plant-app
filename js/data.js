@@ -99,5 +99,13 @@ export async function reviveGrave(grave) {
 
 /** 場所のお知らせ「移動する」: 今の場所を今季の管理場所に合わせる */
 export async function moveToSeasonLoc(p) { p.nowLoc = C.effLocation(p) || p.nowLoc; p.locSnooze = ''; await db.put('plants', p); }
+/** 場所のお知らせをまとめて処理(季節の境目用)。mode: 'move' | 'snooze' */
+export async function bulkLoc(plants, mode) {
+  const s = await getSettings(); const n = Math.max(1, Math.min(60, Math.round(Number(s.locDays) || 3)));
+  await db.atomic(['plants'], (st) => { for (const p of plants) {
+    if (mode === 'move') { p.nowLoc = C.effLocation(p) || p.nowLoc; p.locSnooze = ''; } else p.locSnooze = C.addDays(C.today(), n);
+    st('plants').put(p); } });
+  return n;
+}
 /** 「まだ大丈夫」: 今回はスキップ。3日後にもう一度お知らせ */
 export async function snoozeLocNotice(p) { const s = await getSettings(); const n = Math.max(1, Math.min(60, Math.round(Number(s.locDays) || 3))); p.locSnooze = C.addDays(C.today(), n); await db.put('plants', p); return n; }

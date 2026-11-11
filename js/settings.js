@@ -1,4 +1,5 @@
 // settings.js — 地域・通知・バックアップ/復元
+import * as AB from './autobackup.js';
 import { h, icon, field, opt, toast, confirmBox, modal, C } from './ui.js';
 import { db, getSettings, saveSettings, DEFAULT_TEMPS, validateBackup } from './db.js';
 import { geocode } from './weather.js';
@@ -184,7 +185,8 @@ export async function renderSettings(root) {
         const a = h('a', { href: URL.createObjectURL(blob), download: `plant-backup-${C.today()}.json` }); document.body.append(a); a.click(); a.remove(); await db.kvSet('lastBackup', C.today()); toast('バックアップを保存しました'); rerender();
       } }, '⬇ バックアップを保存'),
       h('button', { class: 'btn', onclick: () => file.click() }, '⬆ ファイルから復元')), file,
-    h('p', { class: 'muted' }, `最終バックアップ: ${(await db.kvGet('lastBackup', null)) || '未実施'}`),
+    h('p', { class: 'muted' }, `最終バックアップ: ${(await AB.lastAny()) || '未実施'}`),
+    await autoBackupBlock(s, rerender),
     h('p', { class: 'muted' }, `ストレージ保護(消えにくくする設定): ${persisted === null ? '非対応' : persisted ? '有効' : '未有効'}${est ? ` / 使用量 約${(est.usage / 1048576).toFixed(1)}MB` : ''}`),
     persisted === false ? h('button', { class: 'btn small', onclick: async () => { const ok = await navigator.storage.persist(); toast(ok ? '保護を有効にしました' : 'ブラウザが許可しませんでした(ホーム画面に追加すると許可されやすくなります)'); rerender(); } }, 'データを消えにくくする') : null));
 
@@ -278,4 +280,33 @@ export async function renderSettings(root) {
     d.addEventListener('toggle', () => { st[title] = d.open; try { localStorage.setItem('pk-settings-open', JSON.stringify(st)); } catch (e) {} });
     hd.replaceWith(d);
   });
+}
+
+/** バックアップの促し間隔と、端末内フォルダへの自動バックアップ */
+async function autoBackupBlock(s, rerender) {
+  const saveS = async () => { await saveSettings(s); };
+  const days = h('input', { type: 'number', min: 1, max: 365, step: 1, value: s.backupDays ?? 30 });
+  days.addEventListener('change', async () => { const n = Math.round(Number(days.value)); if (!(n >= 1 && n <= 365)) { days.value = s.backupDays ?? 30; return; } s.backupDays = n; await saveS(); toast('保存しました'); });
+  const box = h('div', { class: 'auto-bk' }, h('h3', { class: 'set-sub' }, 'バックアップのお知らせ・自動バックアップ'),
+    field('お知らせの間隔(日)', days, 'この日数バックアップしていないと、ホームにお知らせを表示します(初期値30日)'));
+  if (!AB.supported()) { box.append(h('p', { class: 'muted' }, 'この端末・ブラウザでは、フォルダへの自動バックアップは使えません(Chrome / Edge などのパソコン・Android で利用できます。iPhone / iPad では「バックアップを保存」で書き出してください)。')); return box; }
+  const cfg = await AB.getCfg(); const folder = await AB.folderName();
+  box.append(h('p', { class: 'muted' }, 'アプリを開いたとき、設定した間隔が過ぎていれば、選んだフォルダの中の専用フォルダ「植物管理バックアップ」へ自動で保存します(古いものは自動で整理)。アプリを閉じている間には実行されません。'));
+  if (!folder) {
+    box.append(h('button', { class: 'btn', type: 'button', onclick: async () => { try { const n = await AB.chooseFolder(); toast(`「${n}」を保存先にしました`); const r = await AB.backupNow(true); if (r.ok) toast('最初のバックアップを保存しました'); rerender(); } catch (e) { if (e && e.name !== 'AbortError') toast('フォルダを設定できませんでした: ' + e.message, 6000); } } }, '📁 自動バックアップ先のフォルダを選ぶ'));
+  } else {
+    const iv = h('select', null, [1, 3, 7, 14, 30].map((d) => h('option', { value: d, selected: cfg.days === d }, `${d}日ごと`)));
+    iv.addEventListener('change', async () => { await AB.setOptions({ days: Number(iv.value) }); toast('保存しました'); });
+    const keep = h('select', null, [3, 5, 10, 20, 30].map((d) => h('option', { value: d, selected: cfg.keep === d }, `最新${d}個`)));
+    keep.addEventListener('change', async () => { await AB.setOptions({ keep: Number(keep.value) }); toast('保存しました'); });
+    const en = h('input', { type: 'checkbox', checked: cfg.enabled }); en.addEventListener('change', async () => { await AB.setOptions({ enabled: en.checked }); toast(en.checked ? '自動バックアップをオンにしました' : 'オフにしました'); });
+    box.append(h('p', null, '保存先: ', h('strong', null, folder)), h('label', { class: 'row gap' }, en, '自動バックアップを使う'),
+      field('自動で保存する間隔', iv), field('残す数', keep, 'これを超えた古い自動バックアップは削除します(自動で作ったファイルだけが対象)'),
+      h('p', { class: 'muted' }, `最後の自動バックアップ: ${(await db.kvGet('lastAutoBackup', null)) || '未実施'}`),
+      h('div', { class: 'row gap wrap' },
+        h('button', { class: 'btn primary', type: 'button', onclick: async () => { const r = await AB.backupNow(true); toast(r.ok ? `保存しました(${r.file})` : r.reason === 'permission' ? 'フォルダへの許可が得られませんでした' : '保存できませんでした: ' + (r.message || ''), 5000); rerender(); } }, '今すぐフォルダに保存'),
+        h('button', { class: 'btn ghost', type: 'button', onclick: async () => { try { await AB.chooseFolder(); toast('保存先を変更しました'); rerender(); } catch (e) { if (e && e.name !== 'AbortError') toast('変更できませんでした: ' + e.message); } } }, 'フォルダを変更'),
+        h('button', { class: 'btn ghost', type: 'button', onclick: async () => { await AB.disable(); toast('自動バックアップを解除しました'); rerender(); } }, '解除')));
+  }
+  return box;
 }
