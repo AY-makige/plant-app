@@ -1,5 +1,6 @@
 // settings.js — 地域・通知・バックアップ/復元
 import * as AB from './autobackup.js';
+import { checkIntegrity, repairLinks, removeOrphans } from './data.js';
 import { h, icon, field, opt, toast, confirmBox, modal, C } from './ui.js';
 import { db, getSettings, saveSettings, DEFAULT_TEMPS, validateBackup } from './db.js';
 import { geocode } from './weather.js';
@@ -187,6 +188,7 @@ export async function renderSettings(root) {
       h('button', { class: 'btn', onclick: () => file.click() }, '⬆ ファイルから復元')), file,
     h('p', { class: 'muted' }, `最終バックアップ: ${(await AB.lastAny()) || '未実施'}`),
     await autoBackupBlock(s, rerender),
+    integrityBlock(rerender),
     h('p', { class: 'muted' }, `ストレージ保護(消えにくくする設定): ${persisted === null ? '非対応' : persisted ? '有効' : '未有効'}${est ? ` / 使用量 約${(est.usage / 1048576).toFixed(1)}MB` : ''}`),
     persisted === false ? h('button', { class: 'btn small', onclick: async () => { const ok = await navigator.storage.persist(); toast(ok ? '保護を有効にしました' : 'ブラウザが許可しませんでした(ホーム画面に追加すると許可されやすくなります)'); rerender(); } }, 'データを消えにくくする') : null));
 
@@ -309,4 +311,20 @@ async function autoBackupBlock(s, rerender) {
         h('button', { class: 'btn ghost', type: 'button', onclick: async () => { await AB.disable(); toast('自動バックアップを解除しました'); rerender(); } }, '解除')));
   }
   return box;
+}
+
+/** データの点検: 孤立した履歴・切れた紐づけを調べる(調べるだけ。直すのは確認のあと) */
+function integrityBlock(rerender) {
+  const out = h('div', { class: 'muted', role: 'status', 'aria-live': 'polite' });
+  const btn = h('button', { class: 'btn small', type: 'button', onclick: async () => {
+    const rep = await checkIntegrity(); out.innerHTML = '';
+    const nL = rep.brokenLinks.length, nO = rep.orphanLogs.length + rep.orphanRepots.length;
+    if (!nL && !nO) { out.textContent = '問題は見つかりませんでした。'; return; }
+    out.append(h('p', null, `切れた紐づけ ${nL}件 / 持ち主のいない履歴 ${nO}件(水やり・施肥 ${rep.orphanLogs.length}、植え替え ${rep.orphanRepots.length})`));
+    if (nL) out.append(h('button', { class: 'btn small', type: 'button', onclick: async () => { await repairLinks(rep); toast('紐づけを直しました(履歴は消していません)'); rerender(); } }, '切れた紐づけを直す(履歴は消さない)'));
+    if (nO) out.append(' ', h('button', { class: 'btn small ghost', type: 'button', onclick: async () => {
+      if (!(await confirmBox(`持ち主のいない履歴 ${nO}件を削除します。元に戻せません。\nバックアップを保存してから実行することをおすすめします。`, '削除する', true))) return;
+      await removeOrphans(rep); toast('削除しました'); rerender(); } }, '持ち主のいない履歴を削除'));
+  } }, 'データを点検する');
+  return h('div', { class: 'integrity' }, h('h3', { class: 'set-sub' }, 'データの点検'), h('p', { class: 'muted' }, '孤立した履歴や、水やり・液肥の紐づけの切れを調べます(調べるだけで、何も変更しません)。'), btn, out);
 }

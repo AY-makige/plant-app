@@ -145,7 +145,7 @@ export async function renderDetail(root, id) {
         h('div', { class: 'row gap wrap' },
           h('button', { class: 'btn', onclick: () => graveForm(p, s, ctx.names, () => { location.hash = '#/memorial'; }) }, icon('grave', 20), '枯死として記録'),
           h('button', { class: 'btn danger', onclick: async () => {
-            if (await confirmBox(`「${ctx.names[p.id]}」を完全に削除します。\n水やり・施肥・植え替えの履歴も一緒に削除され、元に戻せません。\n(枯れた場合はメモリアルへの移動をおすすめします)`, '完全に削除', true)) { await deletePlant(id, true); toast('削除しました'); location.hash = '#/plants'; }
+            if (await confirmBox(`「${ctx.names[p.id]}」を完全に削除します。\n水やり・施肥・植え替えの履歴も一緒に削除され、元に戻せません。\n(枯れた場合はメモリアルへの移動をおすすめします)\n※ 念のため、削除前に設定からバックアップを保存しておくと安心です。`, '完全に削除', true)) { await deletePlant(id, true); toast('削除しました'); location.hash = '#/plants'; }
           } }, '完全に削除'))));
     else panel.append(
       h('div', { class: 'card' }, h('div', { class: 'row between' }, h('h2', null, '植え替え・用土履歴'), h('button', { class: 'btn small', onclick: () => repotModal(p, null, reload) }, '＋ 記録')),
