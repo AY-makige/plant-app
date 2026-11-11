@@ -424,3 +424,4 @@ details.sec{scroll-margin-top:76px}.diag-row.info .mark{color:var(--muted)}
 .qa.loc .qa-ic{color:#4a7c3a}.loc-note p{margin:0 0 .4rem}.loc-btns{margin-top:.4rem}.loc-note{margin:.2rem 0 .6rem;color:#b45309;font-weight:700;font-size:.85rem;text-align:center}
 .pgrid[data-size=m] .grave .ptxt .row,.pgrid[data-size=m] .grave .ptxt small{display:none}
 .pgrid[data-size=s] .grave .ptxt .row,.pgrid[data-size=s] .grave .ptxt small{display:none}
+.diag-row.info .mark{background:#5b86a8;color:#fff}.diag-row.ok .mark{background:var(--g2)}

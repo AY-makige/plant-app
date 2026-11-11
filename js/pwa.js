@@ -1,5 +1,6 @@
 // pwa.js — インストール支援と PWA 診断
 export const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+export const isIOS = () => /iPhone|iPad|iPod/i.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
 export const canPrompt = () => !!window.__installEvt;
 
 export async function promptInstall() {
@@ -31,13 +32,15 @@ export async function diagnose() {
     }
     if (man) {
       add(!!(man.name || man.short_name) && man.start_url && ['standalone', 'fullscreen', 'minimal-ui'].includes(man.display), '名前・start_url・display が設定済み', `start_url=${man.start_url}`);
-      const sizes = {};
+      const sizes = {}; let maskable = false;
       for (const ic of man.icons || []) {
         const iu = new URL(ic.src, url); const r = await fetch(iu, { cache: 'no-store' }).catch(() => ({ ok: false, status: 'ERR' }));
-        add(r.ok, `アイコン ${ic.sizes}`, `${r.status} ${iu.pathname}`, 'アイコン画像が見つかりません。icons フォルダごとアップロードされているか確認してください。');
-        if (r.ok) sizes[ic.sizes] = true;
+        const pur = String(ic.purpose || 'any').trim(); if (r.ok && /maskable/.test(pur)) maskable = true;
+        add(r.ok, `アイコン ${ic.sizes}(${pur === 'maskable' ? 'maskable=端末の形に切り抜かれる用' : 'any=通常用'})`, `${r.status} ${iu.pathname}`, 'アイコン画像が見つかりません。icons フォルダごとアップロードされているか確認してください。');
+        if (r.ok && /\bany\b/.test(pur)) sizes[ic.sizes] = true;
       }
-      add(!!(sizes['192x192'] && sizes['512x512']), '192px と 512px のアイコンがある', Object.keys(sizes).join(', '));
+      add(!!(sizes['192x192'] && sizes['512x512']), '192px と 512px の通常用(any)アイコンがある', Object.keys(sizes).join(', '));
+      add(maskable, 'maskable アイコンがある(Androidで丸/角に切り抜かれても欠けない)', maskable ? 'あり' : 'なし', 'purpose が maskable のアイコンを追加してください(なくてもインストールはできます)。');
     }
   } catch (e) { add(false, 'manifest を確認できた', String(e.message), 'index.html に <link rel="manifest"> がありません。'); }
 
@@ -52,7 +55,8 @@ export async function diagnose() {
       try { const keys = await caches.keys(); let n = 0; for (const k of keys) n += (await (await caches.open(k)).keys()).length; add(n > 0, 'オフライン用キャッシュがある', `${n}件`); } catch (e) { /* noop */ }
     }
   }
-  add(canPrompt() || isStandalone(), 'ブラウザがインストール可能と判定', canPrompt() ? 'はい(インストールボタンが使えます)' : 'まだ(判定待ち、または条件未達)',
+  if (isIOS() && !isStandalone()) out.push({ ok: null, label: 'ホーム画面への追加(iPhone / iPad)', detail: 'iOS の Safari では「インストール」ボタンは出ません(仕様です)。手動で追加できます', hint: 'Safari で開き、画面下(iPadは上)の共有ボタン □↑ →「ホーム画面に追加」→「追加」。Chrome など他のブラウザでは追加できない場合があります。' });
+  else add(canPrompt() || isStandalone() ? true : null, 'ブラウザがインストール可能と判定', canPrompt() ? 'はい(インストールボタンが使えます)' : 'まだ(判定待ち、または条件未達)',
     '上の項目がすべて ✓ でも出ないことがあります。数回ページを開く/すこし操作してから、Chrome のメニュー(︙)→「アプリをインストール」を確認してください。一度「キャンセル」すると、しばらく表示されないことがあります。');
   return out;
 }

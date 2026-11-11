@@ -53,7 +53,7 @@ export async function renderSettings(root) {
     h('p', null, '状態: ', h('strong', null, isStandalone() ? 'アプリとして起動中' : canPrompt() ? 'インストールできます' : 'ブラウザで表示中')),
     instBtn,
     h('div', { class: 'note' }, h('b', null, 'Android(Chrome): '), '右上のメニュー(︙)→「アプリをインストール」または「ホーム画面に追加」。', h('br'), h('b', null, 'iPhone(Safari): '), '共有ボタン→「ホーム画面に追加」。', h('br'), '出ない場合は下の「診断」で原因を確認してください。'),
-    h('button', { class: 'btn small', onclick: async (e) => { const btn = e.currentTarget; btn.disabled = true; diag.innerHTML = ''; diag.append(h('p', { class: 'muted' }, '診断中…')); const r = await diagnose(); diag.innerHTML = ''; r.forEach((x) => diag.append(h('div', { class: 'diag-row ' + (x.ok === null ? 'info' : x.ok ? 'ok' : 'ng') }, h('span', { class: 'mark' }, x.ok === null ? 'ℹ' : x.ok ? '✓' : '✗'), h('div', null, h('strong', null, x.label), x.detail ? h('div', { class: 'muted' }, x.detail) : null, x.ok === false && x.hint ? h('div', { class: 'hintline' }, x.hint) : null)))); btn.disabled = false; } }, 'インストール診断を実行'), diag));
+    h('button', { class: 'btn small', onclick: async (e) => { const btn = e.currentTarget; btn.disabled = true; diag.innerHTML = ''; diag.append(h('p', { class: 'muted' }, '診断中…')); const r = await diagnose(); diag.innerHTML = ''; r.forEach((x) => diag.append(h('div', { class: 'diag-row ' + (x.ok === null ? 'info' : x.ok ? 'ok' : 'ng') }, h('span', { class: 'mark' }, x.ok === null ? 'ℹ' : x.ok ? '✓' : '✗'), h('div', null, h('strong', null, x.label), x.detail ? h('div', { class: 'muted' }, x.detail) : null, (x.ok === false || x.ok === null) && x.hint ? h('div', { class: 'hintline' }, x.hint) : null)))); btn.disabled = false; } }, 'インストール診断を実行'), diag));
 
   /* AI検索(Google AIモード等)の開き方 */
   const ac = getAiConfig();

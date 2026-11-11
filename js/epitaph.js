@@ -129,12 +129,14 @@ function contextual(g) {
   if (/日陰|半日陰|明るい日陰|室内/.test(text(s.light))) out.push('静かな日陰が落ち着く場所だった…');
   if (Number(p.price) >= 5000) out.push('お高い存在だった…', '家族(財布)も覚悟して迎えた存在だった…');
   if (Number(p.price) > 0 && Number(p.price) <= 500) out.push('お手頃価格でも、かけがえのない存在だった…');
-  const causes = (g.causes || []).map((c) => c.cause).join(' ');
-  if (/害虫/.test(causes)) out.push('虫が嫌いだった…');
-  if (/高温/.test(causes)) out.push('暑さがちょっぴり苦手だった…');
-  if (/低温/.test(causes)) out.push('寒さがちょっぴり苦手だった…');
-  if (/水切れ/.test(causes)) out.push('もっとお水がほしかったのかもしれない…');
-  if (/根腐れ/.test(causes)) out.push('足元がじめじめするのは苦手だった…');
+  // 枯死原因は確度で言い方を変える(確定=そのまま / 推測=断定しない言い方)
+  const cs = g.causes || []; const has = (re) => cs.find((c) => re.test(String(c.cause || '')));
+  const say = (re, sure, guess) => { const c = has(re); if (c) out.push(c.certainty === '推測' ? guess : sure); };
+  say(/害虫/, '虫が嫌いだった…', '虫が苦手だったのかもしれない…');
+  say(/高温/, '暑さがちょっぴり苦手だった…', '暑さが苦手だったのかもしれない…');
+  say(/低温/, '寒さがちょっぴり苦手だった…', '寒さが苦手だったのかもしれない…');
+  say(/水切れ/, 'もっとお水がほしかったのだと思う…', 'もっとお水がほしかったのかもしれない…');
+  say(/根腐れ/, '足元がじめじめするのは苦手だった…', '足元がじめじめするのは苦手だったのかもしれない…');
   if (p.fert && p.fert.interval) out.push('ごはん(液肥)の時間が楽しみだった…');
   if (s.tempMin !== '' && s.tempMin != null && Number(s.tempMin) >= 10) out.push('寒がりだった…');
   if (s.cycle && s.cycle.bloom && s.cycle.bloom.length) out.push('花を咲かせる日を夢見ていた…');
