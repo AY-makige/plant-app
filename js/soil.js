@@ -1,5 +1,5 @@
 // soil.js — 用土・配合管理(材料 / 配合レシピ / 植え替え履歴)
-import { h, sprite, icon, empty, field, opt, modal, confirmBox, toast, photoInput, fmtDate, normalizeMix, ratioText, mixLine, C } from './ui.js';
+import { h, sprite, icon, empty, field, opt, modal, confirmBox, toast, once, photoInput, fmtDate, normalizeMix, ratioText, mixLine, C } from './ui.js';
 import { db, uid, MATERIAL_SPRITE, DEFAULT_MATERIALS } from './db.js';
 const matOrder = (a, b) => { const f = (m) => { const i = DEFAULT_MATERIALS.indexOf(m.name); return i < 0 ? 999 : i; }; return f(a) - f(b) || (a.name || '').localeCompare(b.name || '', 'ja'); };
 const allMats = async () => (await db.all('materials')).sort(matOrder);
@@ -55,13 +55,13 @@ export async function recipeModal(recipe, onDone) {
     const ed = mixEditor(mats, recipe ? recipe.mix : null);
     b.append(field('配合名', name), h('p', { class: 'muted' }, '用土ごとに「部」で比率を入力します(例: 鹿沼土 3 ・ 軽石 2 ・ パーライト 2 → 3 : 2 : 2)'), ed.el, field('備考', note),
       h('div', { class: 'btn-row' }, h('button', { class: 'btn ghost', type: 'button', onclick: close }, 'キャンセル'),
-        h('button', { class: 'btn primary', type: 'button', onclick: async () => {
+        h('button', { class: 'btn primary', type: 'button', onclick: once(async () => {
           if (!name.value.trim()) return toast('配合名を入力してください');
           if (!ed.mix.length) return toast('用土と比率(1以上)を入力してください');
           await registerMats(ed.mix.map((m) => m.material));
           await db.put('recipes', { ...(recipe || { id: uid(), createdAt: Date.now() }), name: name.value.trim(), mix: ed.mix, note: note.value });
           close(); toast('保存しました'); onDone && onDone();
-        } }, '保存')));
+        }) }, '保存')));
   }, { wide: true });
 }
 
@@ -81,14 +81,14 @@ export async function repotModal(plant, preset, onDone) {
       h('div', { class: 'grid2' }, field('鉢・サイズ', pot)), field('植え替え時の写真', photo.el), field('備考', note),
       h('label', { class: 'check' }, saveR, ' この配合を新しいレシピとして保存'), rName,
       h('div', { class: 'btn-row' }, h('button', { class: 'btn ghost', type: 'button', onclick: close }, 'キャンセル'),
-        h('button', { class: 'btn primary', type: 'button', onclick: async () => {
+        h('button', { class: 'btn primary', type: 'button', onclick: once(async () => {
           const pid = plant ? plant.id : plantSel.value; if (!pid) return toast('植物を選んでください');
           let recipeId = rSel.value, recipeName = (recipes.find((r) => r.id === recipeId) || {}).name || '';
           await registerMats(ed.mix.map((m) => m.material));
           if (saveR.checked && ed.mix.length) { if (!rName.value.trim()) return toast('レシピ名を入力してください'); const r = await db.put('recipes', { id: uid(), name: rName.value.trim(), mix: ed.mix, note: '', createdAt: Date.now() }); recipeId = r.id; recipeName = r.name; }
           await db.put('repots', { id: uid(), plantId: pid, date: date.value || C.today(), recipeId, recipeName, mix: ed.mix, potSize: pot.value, note: note.value, photo: photo.value, ts: Date.now() });
           close(); toast('植え替えを記録しました'); onDone && onDone();
-        } }, '記録する')));
+        }) }, '記録する')));
   }, { wide: true });
 }
 

@@ -1,5 +1,5 @@
 // tasks.js — 管理タスク(水やり / 液体肥料 / 実施履歴 / 次回予定)
-import { h, sprite, empty, confirmBox, fmtDate, relDays, stageClass, icon, toast, C } from './ui.js';
+import { h, sprite, empty, confirmBox, fmtDate, relDays, stageClass, icon, toast, once, C } from './ui.js';
 import { db } from './db.js';
 import { loadCtx, deleteLog, recordCare, recordSkip } from './data.js';
 import { careModal, quickCare } from './care.js';
@@ -10,16 +10,16 @@ export function taskRow(ctx, t, onDone) {
   const p = ctx.plants.find((x) => x.id === t.plantId);
   const sc = stageClass(t.kind, t.daysLeft); const label = t.kind === 'water' ? '水やり' : '液体肥料';
   const row = h('div', { class: 'task' + sc },
-    h('a', { href: `#/plants/${p.id}`, class: 'task-av' }, avatar(p, 'mini')),
+    h('a', { href: `#/plants/${p.id}`, class: 'task-av', 'aria-label': `${p.__name || ''}の詳細` }, avatar(p, 'mini')),
     h('div', { class: 'task-main' }, h('a', { class: 'task-name', href: `#/plants/${p.id}` }, t.name),
       h('div', { class: 'task-meta' }, h('span', { class: 'kind ' + t.kind }, icon(t.kind === 'water' ? 'drop' : 'flask', 14), label), C.isDormant(p) ? h('span', { class: 'mini-badge dorm' }, '休眠期') : null,
         h('span', { class: 'due-chip' + sc }, relDays(t.daysLeft, t.kind)), sc && t.daysLeft !== 0 ? h('small', { class: 'muted' }, relDays(t.daysLeft)) : null)),
     h('button', { class: 'icon-btn sm', type: 'button', 'aria-label': `${t.name}の${label}を日付指定で記録`, onclick: () => careModal(p, t.kind, onDone) }, icon('edit', 18)),
     h('button', { class: 'check-btn ' + t.kind, type: 'button', 'aria-label': `${t.name}の${label}を実施済みにする`, onclick: async () => { row.classList.add('done'); await quickCare(p, t.kind, onDone); } }, icon('check', 24)));
-  const skipBtn = h('button', { class: 'btn small ghost skip-btn', type: 'button', 'aria-label': `${t.name}の液肥を今回はスキップ`, onclick: async () => {
+  const skipBtn = h('button', { class: 'btn small ghost skip-btn', type: 'button', 'aria-label': `${t.name}の液肥を今回はスキップ`, onclick: once(async () => {
       const log = await recordSkip(p); const n = C.nextDue(await db.get('plants', p.id), 'fert');
       toast(`${t.name}の液肥をスキップしました(次回 ${n.date ? n.date.slice(5).replace('-', '/') : '—'})`, 6000, { label: '元に戻す', fn: async () => { await deleteLog(log); onDone && onDone(); } }); onDone && onDone();
-    } }, 'スキップ');
+    }) }, 'スキップ');
   if (t.kind === 'fert') row.querySelector('.task-main').append(skipBtn);
   return row;
 }

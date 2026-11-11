@@ -372,7 +372,9 @@ export async function renderForm(root, id, params) {
     if (fk && editing) { const key = fk === 'fert' ? '⑤' : '④'; const d = [...form.querySelectorAll('details.sec')].find((x) => (x.querySelector('summary') || {}).textContent.startsWith(key)); if (d) { d.open = true; setTimeout(() => d.scrollIntoView({ block: 'start' }), 150); } }
   } catch (e) { /* noop */ }
 
-  async function save() {
+  let saving = false; // 二重タップで同じ植物が2件できるのを防ぐ
+  async function save() { if (saving) return; saving = true; try { await doSave(); } finally { saving = false; } }
+  async function doSave() {
     const fd = new FormData(form); const g = (n) => (fd.get(n) ?? '').toString().trim();
     const commonName = g('commonName'), nickname = g('nickname');
     if (!commonName && !nickname) { toast('流通名か呼び名のどちらかを入力してください'); form.elements.commonName.focus(); return; }
@@ -391,10 +393,9 @@ export async function renderForm(root, id, params) {
     const water = { interval: nn('w_interval'), last: g('w_last'), amount: g('w_amount'), dormantInterval: nn('w_dormantInterval'), dormantAmount: g('w_dormantAmount') };
     const fert = { interval: nn('f_interval'), last: g('f_last'), type: g('f_type'), dilution: g('f_dilution'), amount: g('f_amount'), stopInDormant: fd.has('f_stop') };
     species.defaults = { water: { interval: water.interval, amount: water.amount, dormantInterval: water.dormantInterval, dormantAmount: water.dormantAmount }, fert: { interval: fert.interval, type: fert.type, dilution: fert.dilution, amount: fert.amount } };
-    await db.put('species', species);
     const plant = { ...(editing || {}), id: editing ? editing.id : uid(), speciesId: species.id, nickname, photo: photo.value, sprite: spriteSel, status: g('status'), location: g('location'), statusNote: g('statusNote'),
       ...purchase, seasonLoc, price: nn('price'), shop: g('shop'), notes: g('notes'), water, fert, createdAt: editing ? editing.createdAt : Date.now() };
-    await db.put('plants', plant);
+    await db.atomic(['species', 'plants'], (st) => { st('species').put(species); st('plants').put(plant); }); // 種類と個体は一緒に保存
     toast(editing ? '保存しました' : '登録しました'); location.hash = `#/plants/${plant.id}`;
   }
 

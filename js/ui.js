@@ -11,6 +11,8 @@ Element.prototype.append = function (...args) {
   return nativeAppend.apply(this, flat);
 };
 
+/** 連打・二重タップで同じ処理が2回走らないようにする(実行中の呼び出しは無視) */
+export const once = (fn) => { let busy = false; return async (...a) => { if (busy) return; busy = true; try { return await fn(...a); } finally { busy = false; } }; };
 export function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {

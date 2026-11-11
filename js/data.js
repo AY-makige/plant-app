@@ -26,7 +26,8 @@ export async function recordCare(plant, kind, entry) {
   const log = { id: uid(), plantId: plant.id, kind, date: entry.date || C.today(), time: entry.time || '', amount: entry.amount || '', method: entry.method || '',
     fertType: entry.fertType || '', dilution: entry.dilution || '', note: entry.note || '', dormant: C.isDormant(plant), ts: Date.now() };
   let w = null;
-  if (kind === 'fert') {
+  const hasWater = kind === 'fert' && (await db.byPlant('logs', plant.id)).some((l) => l.kind === 'water' && l.date === log.date && !l.skipped); // その日すでに水やり済みなら、同時記録は作らない
+  if (kind === 'fert' && !hasWater) {
     w = { id: uid(), plantId: plant.id, kind: 'water', date: log.date, time: log.time, amount: C.effWater(plant).amount || '', method: '', fertType: '', dilution: '', note: '液肥と同時', dormant: log.dormant, ts: log.ts + 1, linkedTo: log.id };
     log.waterLogId = w.id;
   }

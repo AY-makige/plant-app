@@ -1,9 +1,14 @@
 // care.js — 水やり/施肥の実施入力モーダル
-import { h, modal, field, toast, C } from './ui.js';
+import { h, modal, field, toast, once, C } from './ui.js';
 import { recordCare, deleteLog } from './data.js';
 
 /** ワンタップで「今日実施した」を記録(既定の量・種類を使用)。トーストから取り消せる */
+const quickBusy = new Set(); // 同じ植物・同じ種類の連打を無視
 export async function quickCare(plant, kind, onDone) {
+  const bk = plant.id + kind; if (quickBusy.has(bk)) return; quickBusy.add(bk);
+  try { await quickCare0(plant, kind, onDone); } finally { quickBusy.delete(bk); }
+}
+async function quickCare0(plant, kind, onDone) {
   const w = C.effWater(plant), f = plant.fert || {};
   const log = await recordCare(plant, kind, kind === 'water' ? { amount: w.amount } : { amount: f.amount, fertType: f.type, dilution: f.dilution });
   if (navigator.vibrate) navigator.vibrate(15);
@@ -31,10 +36,10 @@ export function careModal(plant, kind, onDone) {
       field('備考', note),
       h('div', { class: 'btn-row' },
         h('button', { class: 'btn ghost', type: 'button', onclick: close }, 'キャンセル'),
-        h('button', { class: 'btn primary', type: 'button', onclick: async () => {
+        h('button', { class: 'btn primary', type: 'button', onclick: once(async () => {
           if (!date.value) return toast('実施日を入力してください');
           await recordCare(plant, kind, { date: date.value, time: time.value, amount: amount.value, method: method.value, fertType: fertType.value, dilution: dilution.value, note: note.value });
           close(); toast('記録しました'); onDone && onDone();
-        } }, '記録する')));
+        }) }, '記録する')));
   });
 }
