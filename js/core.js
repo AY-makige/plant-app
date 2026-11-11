@@ -98,6 +98,7 @@
   };
   /** 「遅れ」になる超過日数(水やり: 4日以上、液肥: 3日以上) */
   const LATE_FROM = { water: 3, fert: 3 };
+  const LATE_REPEAT = 3; // 遅れが続くときの再通知の間隔(日)
   const SOON_DAYS = 5; // 予定日の5日前〜1日前
   const mergeLabels = (l) => {
     const out = { water: { ...DEFAULT_LABELS.water }, fert: { ...DEFAULT_LABELS.fert } };
@@ -140,7 +141,9 @@
       if (t.kind === 'fert' && !fertOk(t.plantId)) continue;
       const ns = notifStageOf(t.daysLeft), st = stageOf(t.kind, t.daysLeft);
       if (!ns || !n.stages[ns]) continue;
-      const key = `${t.plantId}:${t.kind}:${t.due}:${ns}`;
+      // 遅れ(3日以上)は、最初の通知のあと3日ごとに再度通知する(それ以外は予定日につき1回)
+      const sfx = ns === 'over' && st === 'late' ? 'late' + Math.floor((-t.daysLeft - LATE_FROM[t.kind]) / LATE_REPEAT) : ns;
+      const key = `${t.plantId}:${t.kind}:${t.due}:${sfx}`;
       if (notified && notified[key]) continue;
       const gk = t.kind + ':' + st;
       if (!groups.has(gk)) groups.set(gk, { kind: t.kind, stage: st, keys: [], names: [] });

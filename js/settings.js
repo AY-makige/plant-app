@@ -147,7 +147,7 @@ export async function renderSettings(root) {
     h('div', { class: 'field' }, h('span', { class: 'lbl' }, '通知する段階(各段階につき予定日ごとに1回・同じ種類の植物は1通にまとめます)'), h('div', { class: 'col' },
       h('label', { class: 'check' }, stg[0].el, ' そろそろ(予定日の5日前〜1日前)'),
       h('label', { class: 'check' }, stg[1].el, ' 最適(予定日当日)'),
-      h('label', { class: 'check' }, stg[2].el, ' 予定を過ぎてる(予定日をすぎたとき)'))),
+      h('label', { class: 'check' }, stg[2].el, ' 予定を過ぎてる(予定日をすぎたとき。3日以上遅れが続くと、3日ごとに再通知)'))),
     h('div', { class: 'note' }, 'ℹ アプリを開いたとき・画面に戻ったときに通知を判定します。アプリを閉じたままの通知は、ホーム画面に追加したPWA(Chrome/Android等)の「定期バックグラウンド同期」が使える場合のみ届き、時刻は保証されません。確実な時刻通知にはWeb Pushサーバーが必要です(README参照)。通知を許可しなくても、ホーム画面で予定を確認できます。')));
 
 
@@ -268,7 +268,8 @@ export async function renderSettings(root) {
     draw();
   }
 
-  root.append(h('div', { class: 'card' }, h('h2', null, 'このアプリについて'), h('p', { class: 'muted' }, 'データはこの端末のブラウザ内(IndexedDB)に保存されます。別の端末とは自動同期されません。端末を変える場合はバックアップ→復元を使ってください。')));
+  root.append(h('div', { class: 'card' }, h('h2', null, 'このアプリについて'), h('p', { class: 'muted' }, 'データはこの端末のブラウザ内(IndexedDB)に保存されます。別の端末とは自動同期されません。端末を変える場合はバックアップ→復元を使ってください。'),
+    h('p', null, h('a', { href: 'privacy.html', target: '_blank', rel: 'noopener' }, 'プライバシーポリシー'), ' ・ ', h('a', { href: 'support.html', target: '_blank', rel: 'noopener' }, 'サポート・お問い合わせ'))));
   /* 各項目を開閉式に(開閉状態は端末に記憶) */
   let st = {}; try { st = JSON.parse(localStorage.getItem('pk-settings-open') || '{}'); } catch (e) {}
   [...root.querySelectorAll(':scope > .card')].forEach((card) => {

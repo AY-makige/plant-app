@@ -1,5 +1,5 @@
 // plants.js — ライブラリー(一覧・詳細・登録/編集)
-import { h, sprite, icon, empty, field, opt, monthChips, mixLine, modal, confirmBox, toast, photoInput, fmtDate, relDays, stageClass, ownStart, purchaseText, lifespanText, PLANT_SPRITES, SPRITE_GROUPS, resolveSprite, MONTHS, C } from './ui.js';
+import { h, normSearch, sprite, icon, empty, field, opt, monthChips, mixLine, modal, confirmBox, toast, photoInput, fmtDate, relDays, stageClass, ownStart, purchaseText, lifespanText, PLANT_SPRITES, SPRITE_GROUPS, resolveSprite, MONTHS, C } from './ui.js';
 import { db, uid, getSettings } from './db.js';
 import { loadCtx, deleteLog, deletePlant, recordSkip, moveToSeasonLoc, snoozeLocNotice } from './data.js';
 import { googleUrl, aiPrompt, openAiSearch, imageUrl, RESEARCH_ITEMS, FIELDS, ENVS, getEnv, setEnv, speciesQuery, openTab, geminiConfig, geminiLookup, toFormValues } from './search.js';
@@ -60,14 +60,15 @@ export async function renderList(root) {
   };
   const draw = () => {
     grid.innerHTML = ''; drawExt();
-    const kw = q.value.trim().toLowerCase();
+    const terms = normSearch(q.value).split(/\s+/).filter(Boolean); // スペース区切りは「すべて含む」
     const list = ctx.plants.filter((p) => {
       const s = ctx.sp[p.speciesId] || {};
       if (f.st && p.status !== f.st) return false;
       if (f.loc && C.effLocation(p) !== f.loc) return false;
       if (f.soil) { const r = curSoil.get(p.id); if (!r) return false; if (f.soil.startsWith('r:') ? r.recipeId !== f.soil.slice(2) : !(r.mix || []).some((x) => x.material === f.soil.slice(2))) return false; }
-      if (!kw) return true;
-      return [p.nickname, s.commonName, s.sciName, s.origin, p.notes].join(' ').toLowerCase().includes(kw);
+      if (!terms.length) return true;
+      const hay = normSearch([p.nickname, s.commonName, s.sciName, s.origin, p.notes].join(' '));
+      return terms.every((t) => hay.includes(t));
     });
     if (!list.length) { grid.append(empty('terrarium', ctx.plants.length ? '条件に合う植物がありません' : 'まだ植物が登録されていません', ctx.plants.length ? null : h('a', { class: 'btn primary', href: '#/plants/new' }, '最初の植物を登録'))); return; }
     for (const p of list) {

@@ -124,6 +124,7 @@ export async function buryPlant(plant, species, info, names) {
 /** メモリアルから所持植物へ戻す(誤操作用)。個体ID・写真・履歴をそのまま復元 */
 export async function reviveGrave(grave) {
   if (!(await db.get('graves', grave.id))) throw new Error('この記録はすでに戻されたか、削除されています');
+  if (!grave.plant || !grave.plant.id) throw new Error('この記録には植物のデータが残っていないため、所持植物には戻せません');
   if (await db.get('plants', grave.plant.id)) throw new Error('同じ植物がすでに所持植物にあります');
   const plant = { ...grave.plant };
   const needSp = grave.species && !(await db.get('species', grave.species.id));

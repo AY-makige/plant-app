@@ -13,6 +13,8 @@ Element.prototype.append = function (...args) {
 
 /** 連打・二重タップで同じ処理が2回走らないようにする(実行中の呼び出しは無視) */
 export const once = (fn) => { let busy = false; return async (...a) => { if (busy) return; busy = true; try { return await fn(...a); } finally { busy = false; } }; };
+/** 検索用の正規化: 全角/半角・大文字小文字をそろえ、カタカナはひらがなに(例: 「アガベ」も「あがべ」も同じ扱い) */
+export const normSearch = (s) => String(s == null ? '' : s).normalize('NFKC').toLowerCase().replace(/[\u30a1-\u30f6]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60));
 export function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {

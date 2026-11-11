@@ -47,10 +47,12 @@ export function graveForm(plant, species, names, onDone) {
 function gravePhoto(g, cls = '') {
   return g.photo ? h('img', { class: 'avatar ' + cls + ' grave-img', src: g.photo, alt: g.name + 'の遺影' }) : h('div', { class: 'avatar grave-ph ' + cls }, graveImg());
 }
+/** 古い/不完全なデータでも表示が壊れないよう、欠けた項目を補う */
+const fixGrave = (g) => { if (g) { if (!Array.isArray(g.causes)) g.causes = []; if (!g.plant) g.plant = {}; if (!g.species) g.species = {}; if (!Array.isArray(g.lastCare)) g.lastCare = []; if (!Array.isArray(g.repots)) g.repots = []; g.name = g.name || '名称未設定'; g.deathDate = g.deathDate || ''; } return g; };
 const span = (g) => lifespanText(ownStart(g.plant), g.deathDate);
 
 export async function renderMemorial(root) {
-  const graves = (await db.all('graves')).sort((a, b) => b.deathDate.localeCompare(a.deathDate));
+  const graves = (await db.all('graves')).map(fixGrave).sort((a, b) => b.deathDate.localeCompare(a.deathDate));
   root.append(h('div', { class: 'memorial-head' }, graveImg('hdr'), h('div', null, h('h1', null, 'メモリアル'), h('p', { class: 'muted' }, '枯れてしまった植物の記録です。「枯死として記録」は各植物の詳細 → 情報タブから行えます。'))));
   if (!graves.length) { root.append(h('div', { class: 'empty' }, graveImg('big'), h('p', null, 'メモリアルはまだありません'))); return; }
   const SIZES = [['l', '大'], ['m', '中'], ['s', '小']];
@@ -64,7 +66,7 @@ export async function renderMemorial(root) {
 }
 
 export async function renderGrave(root, id) {
-  const g = await db.get('graves', id);
+  const g = fixGrave(await db.get('graves', id));
   if (!g) { root.append(empty('i_warn', '記録が見つかりません', h('a', { class: 'btn', href: '#/memorial' }, '戻る'))); return; }
   const s = g.species || {}; const start = ownStart(g.plant);
   const row = (k, v) => (v ? h('div', { class: 'kv' }, h('dt', null, k), h('dd', { class: 'pre' }, v)) : null);
