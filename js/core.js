@@ -54,38 +54,29 @@
   }
 
   /** 温度警告: 週間予報 vs 植物ごとの設定温度 */
+  /** 気温アラート(全植物に共通・屋内外の区別なし)。設定の温度と週間予報を比べ、最大でも寒い側1件+暑い側1件にまとめる。
+   *  ① 「特に寒い日」(最低気温 < 特に寒い温度) / 「特に暑い日」(最高気温 ≥ 特に暑い温度)があれば、そのお知らせだけを出す
+   *  ② なければ 低気温(最低気温 ≤ 低気温の注意温度 + 余裕温度)=水やり注意、高気温(最高気温 ≥ 特に暑い温度 − 余裕温度)=風通し注意 */
   function computeWarnings(plants, names, daily, margin, temps) {
     const out = [];
     if (!daily || !daily.length) return out;
     margin = num(margin) ?? 3;
-    const T = temps || {}; const outdoorMin = num(T.outdoorMin), indoor = num(T.indoorTemp), high = num(T.highTemp);
-    // ① 設定より特に寒い・暑い日: 種類・屋内外に関係なく共通のお知らせにし、他の気温アラートは出さない
+    const T = temps || {}; const veryCold = num(T.outdoorMin), cold = num(T.indoorTemp), veryHot = num(T.highTemp);
     const td = today(); const when = (date) => (date === td ? '本日' : `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`);
-    const extremes = [];
-    const cold = outdoorMin != null ? daily.find((d) => d.tmin != null && d.tmin < outdoorMin) : null;
-    const hot = high != null ? daily.find((d) => d.tmax != null && d.tmax >= high) : null;
-    if (cold) extremes.push({ plantId: null, name: '', kind: 'extreme', level: 'urgent', label: '特に寒い', date: cold.date, temp: cold.tmin, threshold: outdoorMin, msg: `${when(cold.date)}は特に寒いため、低温に注意してください(最低 ${cold.tmin}℃)` });
-    if (hot) extremes.push({ plantId: null, name: '', kind: 'extreme', level: 'heat', label: '特に暑い', date: hot.date, temp: hot.tmax, threshold: high, msg: `${when(hot.date)}は特に暑いため、高温に注意してください(最高 ${hot.tmax}℃)` });
-    if (extremes.length) return extremes;
-    // ② 通常の警告は屋外管理の植物だけ(屋内管理の植物は外気温の警告対象外。場所が未設定の植物は屋外扱い)
-    for (const p of plants) {
-      if (p.location === 'indoor') continue;
-      const rank = { warning: 2, caution: 1 };
-      let best = null;
-      for (const d of daily) {
-        if (d.tmin == null || indoor == null) continue;
-        let lv = null;
-        if (d.tmin < indoor) lv = 'warning'; else if (d.tmin <= indoor + margin) lv = 'caution';
-        if (lv && (!best || rank[lv] > rank[best.level])) best = { level: lv, date: d.date, temp: d.tmin, threshold: indoor };
-      }
-      if (best) {
-        const label = { warning: '警告', caution: '注意' }[best.level];
-        const msg = best.level === 'warning' ? `室内取り込み目安 ${indoor}℃ を下回る予報(最低 ${best.temp}℃)` : `室内取り込み目安 ${indoor}℃ に接近(最低 ${best.temp}℃)`;
-        out.push({ plantId: p.id, name: names[p.id], kind: 'cold', ...best, label, msg });
-      }
-    }
-    const order = { urgent: 0, warning: 1, heat: 2, caution: 3 };
-    return out.sort((a, b) => order[a.level] - order[b.level] || a.date.localeCompare(b.date));
+    const days = daily.filter((d) => d && d.date);
+    const mk = (level, label, kind, d, temp, threshold, msg) => ({ plantId: null, name: '', kind, level, label, date: d.date, temp, threshold, msg });
+    const vc = veryCold != null ? days.filter((d) => d.tmin != null && d.tmin < veryCold).sort((a, b) => a.date.localeCompare(b.date))[0] : null;
+    const vh = veryHot != null ? days.filter((d) => d.tmax != null && d.tmax >= veryHot).sort((a, b) => a.date.localeCompare(b.date))[0] : null;
+    if (vc) out.push(mk('urgent', '特に寒い', 'extreme', vc, vc.tmin, veryCold, `${when(vc.date)}は特に寒いため、低温に注意してください(最低 ${vc.tmin}℃)`));
+    if (vh) out.push(mk('heat', '特に暑い', 'extreme', vh, vh.tmax, veryHot, `${when(vh.date)}は特に暑いため、高温に注意してください(最高 ${vh.tmax}℃)`));
+    if (out.length) return out; // 特に寒い・暑い日は他の気温アラートを出さない
+    // 低気温: 冷えた日に水をあげると根が冷えすぎるため、水やりに注意
+    const cd = cold != null ? days.filter((d) => d.tmin != null && d.tmin <= cold + margin).sort((a, b) => a.tmin - b.tmin)[0] : null;
+    if (cd) out.push(mk('caution', '注意', 'cold', cd, cd.tmin, cold, `低気温につき管理植物の水やりに気を付けてください(${when(cd.date)} 最低 ${cd.tmin}℃)`));
+    // 高気温: 暑い日は蒸れて弱るため、風通しに注意
+    const hd = veryHot != null ? days.filter((d) => d.tmax != null && d.tmax >= veryHot - margin).sort((a, b) => b.tmax - a.tmax)[0] : null;
+    if (hd) out.push(mk('caution', '注意', 'heat', hd, hd.tmax, veryHot, `高気温につき管理植物の風通しに気を付けてください(${when(hd.date)} 最高 ${hd.tmax}℃)`));
+    return out;
   }
 
   /* ── 予定日との差による段階(そろそろ / 今やる / 遅れ)と、ユーザーが変えられる表示名 ── */
