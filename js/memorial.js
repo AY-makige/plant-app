@@ -53,9 +53,14 @@ export async function renderMemorial(root) {
   const graves = (await db.all('graves')).sort((a, b) => b.deathDate.localeCompare(a.deathDate));
   root.append(h('div', { class: 'memorial-head' }, graveImg('hdr'), h('div', null, h('h1', null, 'メモリアル'), h('p', { class: 'muted' }, '枯れてしまった植物の記録です。「枯死として記録」は各植物の詳細 → 情報タブから行えます。'))));
   if (!graves.length) { root.append(h('div', { class: 'empty' }, graveImg('big'), h('p', null, 'メモリアルはまだありません'))); return; }
-  root.append(h('div', { class: 'pgrid' }, graves.map((g) => h('a', { class: 'pcard grave', href: `#/memorial/${g.id}` }, h('div', { class: 'pimg' }, gravePhoto(g, 'cover')),
+  const SIZES = [['l', '大'], ['m', '中'], ['s', '小']];
+  const getSize = () => { try { const v = localStorage.getItem('pk-tile-grave'); return SIZES.some((x) => x[0] === v) ? v : 'l'; } catch (e) { return 'l'; } };
+  const grid = h('div', { class: 'pgrid' }); grid.dataset.size = getSize();
+  const sizeSeg = h('div', { class: 'seg tile-seg', role: 'radiogroup', 'aria-label': '表示サイズ' }, SIZES.map(([k, l]) => h('button', { type: 'button', class: 'seg-b' + (grid.dataset.size === k ? ' on' : ''), role: 'radio', 'aria-checked': grid.dataset.size === k, onclick: (e) => { grid.dataset.size = k; try { localStorage.setItem('pk-tile-grave', k); } catch (er) { /* noop */ } [...sizeSeg.children].forEach((b) => { const on = b === e.currentTarget; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); }); } }, l)));
+  root.append(h('div', { class: 'size-row' }, h('span', { class: 'muted' }, '表示サイズ'), sizeSeg));
+  grid.append(...graves.map((g) => h('a', { class: 'pcard grave', href: `#/memorial/${g.id}` }, h('div', { class: 'pimg' }, gravePhoto(g, 'cover')),
     h('div', { class: 'ptxt' }, h('strong', null, g.name), h('small', { class: 'muted' }, `${fmtDate(g.deathDate)} 枯死`), h('small', null, '享年 ' + span(g)), g.epitaph ? h('small', { class: 'epi-tile' }, '「' + g.epitaph + '」') : null,
-      h('div', { class: 'row gap wrap' }, g.causes.map((c) => h('span', { class: 'badge ' + (c.certainty === '確定' ? 'st-care' : '') }, `${c.cause}${c.certainty === '推測' ? '?' : ''}`))))))));
+      h('div', { class: 'row gap wrap' }, g.causes.map((c) => h('span', { class: 'badge ' + (c.certainty === '確定' ? 'st-care' : '') }, `${c.cause}${c.certainty === '推測' ? '?' : ''}`))))))); root.append(grid);
 }
 
 export async function renderGrave(root, id) {
