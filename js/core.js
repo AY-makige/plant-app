@@ -79,6 +79,17 @@
     return out;
   }
 
+  /** 「今ある場所」(p.nowLoc)と、今の季節の管理場所(effLocation)がずれている植物のお知らせ */
+  function locNotice(p) {
+    const now = p && p.nowLoc, want = effLocation(p);
+    if (!now || !want || now === want) return '';
+    return want === 'indoor' ? 'そろそろ部屋に入れてほしいかも' : 'そろそろ外で暮らしたいかも';
+  }
+  function locationNotices(plants, names) {
+    return (plants || []).map((p) => ({ p, msg: locNotice(p) })).filter((x) => x.msg)
+      .map((x) => ({ plantId: x.p.id, name: (names && names[x.p.id]) || x.p.nickname || '', kind: 'location', level: 'caution', label: '場所', date: null, msg: x.msg }));
+  }
+
   /* ── 予定日との差による段階(そろそろ / 今やる / 遅れ)と、ユーザーが変えられる表示名 ── */
   const DEFAULT_LABELS = {
     water: { soon: 'そろそろ', now: 'カラカラ', late: 'み、水…' },
@@ -172,5 +183,5 @@
     return `${p.purchaseYear}年 ${p.purchaseSeason || ''}(約)`;
   }
 
-  root.PlantCore = { effLocation, SEASON_MONTHS, seasonOfMonth, HALF_DAY, ownStart, purchaseMin, purchaseLabel, DAY, ymd, parse, today, addDays, diffDays, num, isDormant, effWater, effFert, nextDue, buildTasks, computeWarnings, computeDueNotifications, DEFAULT_LABELS, mergeLabels, setLabels, getLabels, stageOf, stageLabel, notifyCfg, notifStageOf };
+  root.PlantCore = { locNotice, locationNotices, effLocation, SEASON_MONTHS, seasonOfMonth, HALF_DAY, ownStart, purchaseMin, purchaseLabel, DAY, ymd, parse, today, addDays, diffDays, num, isDormant, effWater, effFert, nextDue, buildTasks, computeWarnings, computeDueNotifications, DEFAULT_LABELS, mergeLabels, setLabels, getLabels, stageOf, stageLabel, notifyCfg, notifStageOf };
 })(typeof self !== 'undefined' ? self : window);

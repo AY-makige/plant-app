@@ -48,16 +48,17 @@ export async function renderHome(root) {
     today.length ? today.map((t) => taskRow(ctx, t, rerender)) : h('div', { class: 'empty-s' }, sprite(ctx.plants.length ? 'i_check' : 'terrarium', 'med'), h('p', null, ctx.plants.length ? '今日やることはありません' : '植物がまだ登録されていません'), !ctx.plants.length ? h('a', { class: 'btn primary', href: '#/plants/new' }, '植物を登録') : null)));
 
   /* 天気 */
+  const locN = C.locationNotices(ctx.plants, ctx.names);
   const wx = h('div', { class: 'card wx' });
   root.append(section('地域の天気', wx));
   if (!settings.region) {
     wx.append(h('p', { class: 'muted' }, '市区町村を登録すると、現在の気温・週間予報・植物ごとの温度警告が表示されます。'), h('a', { class: 'btn primary small', href: '#/settings' }, '地域を設定する'));
-    warnStat.querySelector('b').textContent = '—';
+    warnStat.querySelector('b').textContent = locN.length || '—'; if (locN.length) warnStat.classList.add('alert'); drawAlerts(alerts, locN);
   } else {
     wx.append(h('p', { class: 'muted' }, '天気を取得中…'));
     fetchForecast(settings.region).then((f) => {
       drawWeather(wx, f, settings, rerender);
-      const ws = C.computeWarnings(ctx.plants, ctx.names, f.daily, settings.margin, settings.temps);
+      const ws = C.computeWarnings(ctx.plants, ctx.names, f.daily, settings.margin, settings.temps).concat(locN);
       warnStat.querySelector('b').textContent = ws.length; if (ws.length) warnStat.classList.add('alert');
       drawAlerts(alerts, ws);
     }).catch((e) => {
@@ -86,8 +87,8 @@ function drawAlerts(box, ws) {
   if (!ws.length) return;
   const worst = ws[0].level;
   box.append(h('details', { class: 'alert-card ' + worst, open: worst === 'urgent' || worst === 'warning' },
-    h('summary', null, icon('thermo', 22), h('strong', null, `温度警告 ${ws.length}件`), h('span', { class: 'sm-note' }, '週間予報と設定温度の比較')),
-    ws.map((w) => h('div', { class: 'warn-row ' + w.level }, h('span', { class: 'lv' }, w.label), w.plantId ? h('div', null, h('a', { href: `#/plants/${w.plantId}` }, w.name), h('div', { class: 'muted' }, `${w.msg}(${fmtShort(w.date)})`)) : h('div', null, h('strong', null, w.msg)))),
+    h('summary', null, icon('thermo', 22), h('strong', null, `気温アラート ${ws.length}件`), h('span', { class: 'sm-note' }, '週間予報・設定温度・植物の居場所')),
+    ws.map((w) => h('div', { class: 'warn-row ' + w.level }, h('span', { class: 'lv' }, w.label), w.plantId ? h('div', null, h('a', { href: `#/plants/${w.plantId}` }, w.name), h('div', { class: 'muted' }, w.date ? `${w.msg}(${fmtShort(w.date)})` : w.msg)) : h('div', null, h('strong', null, w.msg)))),
     h('p', { class: 'note' }, '※ 温度警告は栽培判断の補助です。風・鉢内温度・日当たり・植物の状態も考慮して、屋外管理を続けるか室内へ移すか判断してください。')));
 }
 

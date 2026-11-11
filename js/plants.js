@@ -104,10 +104,17 @@ export async function renderDetail(root, id) {
   const cfg = await getSettings(); const warns = fc ? C.computeWarnings([p], ctx.names, fc.data.daily, cfg.margin, cfg.temps) : [];
   const dorm = C.isDormant(p); const start = ownStart(p);
 
+  /* 今ある場所(屋内/屋外)ボタン: 季節ごとの管理場所とずれると気温アラートに出る */
+  const nowLocBox = () => {
+    const cur = p.nowLoc || ''; const note = C.locNotice(p);
+    const btn = (v, l) => h('button', { type: 'button', class: 'btn small' + (cur === v ? ' primary' : ' ghost'), onclick: async () => { p.nowLoc = cur === v ? '' : v; await db.put('plants', p); reload(); } }, l);
+    return h('div', { class: 'nowloc' }, h('span', { class: 'muted' }, '今の場所'), btn('indoor', '屋内'), btn('outdoor', '屋外'),
+      note ? h('small', { class: 'warn-txt' }, note) : null);
+  };
   const sched = (kind) => {
     const eff = kind === 'water' ? C.effWater(p) : C.effFert(p);
     const title = kind === 'water' ? '水やり間隔' : '液肥の間隔';
-    return h('div', { class: 'card sched' }, h('div', { class: 'row between' }, h('h3', { class: 'kind ' + kind }, icon(kind === 'water' ? 'drop' : 'flask', 18), title), h('div', { class: 'row gap' }, dorm ? h('span', { class: 'badge st-dorm' }, '休眠期設定') : null,
+    return h('div', { class: 'card sched' }, nowLocBox(), h('div', { class: 'row between' }, h('h3', { class: 'kind ' + kind }, icon(kind === 'water' ? 'drop' : 'flask', 18), title), h('div', { class: 'row gap' }, dorm ? h('span', { class: 'badge st-dorm' }, '休眠期設定') : null,
         h('a', { class: 'icon-btn sm', href: `#/plants/${p.id}/edit`, 'aria-label': `${title}を編集`, title: '編集', onclick: () => { try { sessionStorage.setItem('editFocus', kind); } catch (e) { /* noop */ } } }, icon('edit', 18)))),
       eff.stopped ? h('div', { class: 'interval-big muted' }, '休眠期のため停止中')
         : !eff.interval ? h('div', { class: 'interval-big muted' }, '未設定')
