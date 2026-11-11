@@ -147,7 +147,7 @@ export function epitaphFor(g, last, cfg) {
   const base = cfg && Array.isArray(cfg.list) && cfg.list.length ? cfg.list : DEFAULT_EPITAPHS;
   const ctx = !cfg || cfg.context !== false ? contextual(g) : [];
   const p0 = g.plant || {};
-  const outdoor = p0 && p0.location === 'outdoor' ? ['外は寒かった…', '外は暑かった…'] : []; // 屋外管理だった子(出やすさは控えめに各1件)
+  const outdoor = p0 && window.PlantCore.effLocation(p0, g.deathDate) === 'outdoor' ? ['外は寒かった…', '外は暑かった…'] : []; // 屋外管理だった子(出やすさは控えめに各1件)
   const pool = [...base, ...ctx, ...ctx, ...outdoor]; // 記録に合う言葉は2倍出やすい
   const cand = pool.filter((t) => t !== last);
   const list = cand.length ? cand : pool;

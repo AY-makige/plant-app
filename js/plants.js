@@ -64,7 +64,7 @@ export async function renderList(root) {
     const list = ctx.plants.filter((p) => {
       const s = ctx.sp[p.speciesId] || {};
       if (f.st && p.status !== f.st) return false;
-      if (f.loc && p.location !== f.loc) return false;
+      if (f.loc && C.effLocation(p) !== f.loc) return false;
       if (f.soil) { const r = curSoil.get(p.id); if (!r) return false; if (f.soil.startsWith('r:') ? r.recipeId !== f.soil.slice(2) : !(r.mix || []).some((x) => x.material === f.soil.slice(2))) return false; }
       if (!kw) return true;
       return [p.nickname, s.commonName, s.sciName, s.origin, p.notes].join(' ').toLowerCase().includes(kw);
@@ -139,7 +139,7 @@ export async function renderDetail(root, id) {
         row('原産地・生息地', s.origin), row('適温', s.tempOpt), row('最低〜最高温度', [s.tempMin, s.tempMax].some((x) => x !== '' && x != null) ? `${s.tempMin ?? '—'}℃ 〜 ${s.tempMax ?? '—'}℃` : ''),
         row('湿度', s.humidity), row('日照', s.light), row('水分条件', s.moisture), row('追肥(遅効性肥料)', s.slowFert), row('液肥(ハイポネックス)', s.liquidDilution),
         row('購入時期', purchaseText(p)), row('所有期間', start ? lifespanText(start, C.today(), 'owned') : ''),
-        row('栽培場所', locLabel(p.location)), row('購入価格', p.price ? `¥${Number(p.price).toLocaleString()}` : ''), row('購入先', p.shop), row('状態メモ', p.statusNote), row('備考', p.notes))),
+        row('栽培場所(今の季節)', locLabel(C.effLocation(p))), row('管理場所(季節ごと)', ['春', '夏', '秋', '冬'].some((x) => (p.seasonLoc || {})[x]) ? ['春', '夏', '秋', '冬'].map((x) => `${x}:${locLabel((p.seasonLoc || {})[x]) || '基本'}`).join(' / ') : ''), row('購入価格', p.price ? `¥${Number(p.price).toLocaleString()}` : ''), row('購入先', p.shop), row('状態メモ', p.statusNote), row('備考', p.notes))),
       h('div', { class: 'card danger-zone' }, h('h2', null, '植物の終了'),
         h('p', { class: 'muted' }, '枯れてしまった場合は「削除」ではなくメモリアルへ移動すると、記録として残せます。'),
         h('div', { class: 'row gap wrap' },
@@ -322,6 +322,14 @@ export async function renderForm(root, id, params) {
     return el;
   })();
   const buyBox = buy;
+  /* 管理場所(季節ごと): 春夏秋冬それぞれ 屋内/屋外 */
+  const seasonLocBox = (() => {
+    const nowS = C.seasonOfMonth(new Date().getMonth() + 1);
+    return h('div', { class: 'field season-loc' }, h('span', { class: 'lbl' }, '管理場所(季節ごと・屋内/屋外)'),
+      h('p', { class: 'muted' }, '季節ごとに屋内か屋外かを選べます。決めていない季節は「基本の栽培場所」を使います。'),
+      ['春', '夏', '秋', '冬'].map((se) => h('div', { class: 'cy-edit' }, h('strong', null, `${se}(${C.SEASON_MONTHS[se].map((m) => m + '月').join('・')})${se === nowS ? ' ◀今' : ''}`),
+        h('div', { class: 'loc-opts' }, [['', '基本'], ['indoor', '屋内'], ['outdoor', '屋外']].map(([k, l]) => h('label', { class: 'loc-opt' }, h('input', { type: 'radio', name: 'seasonLoc_' + se, value: k, checked: ((p.seasonLoc || {})[se] || '') === k }), h('span', null, l)))))));
+  })();
   const sugg = h('div', { class: 'sp-suggest hidden' });
   const normN = (x) => String(x || '').replace(/[\s\u3000]/g, '').toLowerCase();
   const checkSugg = () => {
@@ -338,7 +346,8 @@ export async function renderForm(root, id, params) {
     sec('① 種類・植物情報', true, nameFields, sugg, lookup, field('登録済みの種類から選ぶ', spSelect, '同じ種類を複数持っている場合は、ここで既存の種類を選ぶと別個体として登録できます'), spWrap),
     sec('② 個体情報', true,
       field('写真', photo.el), h('p', { class: 'muted' }, '写真が無い場合は、下のイラストを代わりに使えます'), spriteGrid,
-      field('栽培場所', h('select', { name: 'location' }, h('option', { value: '' }, '未設定'), LOCS.map(([k, l]) => opt(k, l, p.location)))),
+      field('基本の栽培場所', h('select', { name: 'location' }, h('option', { value: '' }, '未設定'), LOCS.map(([k, l]) => opt(k, l, p.location))), '季節ごとの管理場所を決めていない季節は、この場所になります'),
+      seasonLocBox,
       field('現在の状態', h('select', { name: 'status' }, STATUSES.map((s) => opt(s, s, p.status))), '育成中=通常 / 成長中=成長期 / 休眠中=休眠期(休眠中にすると休眠期の水やり設定が使われます)'),
       field('状態メモ', v('statusNote', p.statusNote, 'text', { placeholder: '療養中の理由など' }))),
     sec('③ 購入情報', false,
@@ -371,6 +380,7 @@ export async function renderForm(root, id, params) {
     if (pd && !pm) { toast('日を入れるときは、先に季節と月を選んでください'); return; }
     if (pd && (pd < 1 || pd > new Date(py, pm, 0).getDate())) { toast(`${pm}月に ${pd}日はありません`); form.elements.purchaseDay.focus(); return; }
     const purchase = { purchaseYear: py, purchaseSeason: pm ? C.seasonOfMonth(pm) : g('purchaseSeason'), purchaseMonth: pm, purchaseHalf: pm && !pd ? g('purchaseHalf') : '', purchaseDate: py && pm && pd ? `${py}-${String(pm).padStart(2, '0')}-${String(pd).padStart(2, '0')}` : '' };
+    const seasonLoc = {}; ['春', '夏', '秋', '冬'].forEach((se) => { const x = g('seasonLoc_' + se); if (x) seasonLoc[se] = x; });
     const cycle = {}; CYCLE.forEach(([k]) => { cycle[k] = fd.getAll('cycle_' + k).map(Number); });
     const nn = (n) => { const x = g(n); return x === '' ? '' : Number(x); };
     let species = ctx.sp[g('speciesId')] || { id: uid() };
@@ -380,7 +390,7 @@ export async function renderForm(root, id, params) {
     species.defaults = { water: { interval: water.interval, amount: water.amount, dormantInterval: water.dormantInterval, dormantAmount: water.dormantAmount }, fert: { interval: fert.interval, type: fert.type, dilution: fert.dilution, amount: fert.amount } };
     await db.put('species', species);
     const plant = { ...(editing || {}), id: editing ? editing.id : uid(), speciesId: species.id, nickname, photo: photo.value, sprite: spriteSel, status: g('status'), location: g('location'), statusNote: g('statusNote'),
-      ...purchase, price: nn('price'), shop: g('shop'), notes: g('notes'), water, fert, createdAt: editing ? editing.createdAt : Date.now() };
+      ...purchase, seasonLoc, price: nn('price'), shop: g('shop'), notes: g('notes'), water, fert, createdAt: editing ? editing.createdAt : Date.now() };
     await db.put('plants', plant);
     toast(editing ? '保存しました' : '登録しました'); location.hash = `#/plants/${plant.id}`;
   }

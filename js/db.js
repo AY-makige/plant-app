@@ -117,7 +117,7 @@ export async function ensureDefaults() {
     await db.kvSet('settings', { region: null, notify: { enabled: true, time: '08:00', stages: { soon: true, now: true, late: true } }, margin: 3 });
   }
 }
-export const DEFAULT_TEMPS = { outdoorMin: 5, indoorTemp: 10, highTemp: 35 };
+export const DEFAULT_TEMPS = { outdoorMin: 5, highTemp: 35 };
 export async function getSettings() {
   const s = await db.kvGet('settings', { region: null, notify: { enabled: true, time: '08:00', stages: { soon: true, now: true, late: true } }, margin: 3 });
   if (!s.temps) { // 以前の「株ごとの温度設定」から、いちばん多い値を全体設定として引き継ぐ(無ければ初期値)

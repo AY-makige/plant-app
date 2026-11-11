@@ -419,3 +419,5 @@ details.sec{scroll-margin-top:76px}.diag-row.info .mark{color:var(--muted)}
 .epi-list{max-height:46vh;overflow:auto;margin:.5rem 0;border:1px solid var(--line);border-radius:12px;padding:.2rem .6rem}.epi-item{display:flex;align-items:center;gap:.3rem;padding:.4rem 0;border-bottom:1px dashed var(--line)}.epi-item:last-child{border-bottom:0}.epi-item span{flex:1;min-width:0;font-size:.92rem}
 
 .icon-howto{margin:.7rem 0;background:var(--card2,rgba(120,160,120,.1));border-radius:10px;padding:.4rem .8rem}.icon-howto summary{cursor:pointer;font-weight:700;min-height:36px;display:flex;align-items:center}
+
+.loc-opts{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.2rem}.loc-opt{position:relative}.loc-opt input{position:absolute;opacity:0;inset:0;width:100%;height:100%;margin:0;cursor:pointer}.loc-opt span{display:inline-block;padding:.35rem .9rem;border:1px solid var(--line);border-radius:999px;background:var(--card,#fff);min-height:36px;line-height:1.7}.loc-opt input:checked+span{background:var(--g1);color:#fff;border-color:var(--g1);font-weight:700}.loc-opt input:focus-visible+span{outline:2px solid var(--g2);outline-offset:2px}
