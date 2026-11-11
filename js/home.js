@@ -1,7 +1,7 @@
 // home.js — ホーム(今日の進捗・温度警告・タスク・天気・休眠期の植物)
 import { h, sprite, toast, fmtShort, WD, MONTHS, icon, C } from './ui.js';
 import { db, getSettings } from './db.js';
-import { loadCtx } from './data.js';
+import { loadCtx, moveToSeasonLoc, snoozeLocNotice } from './data.js';
 import { fetchForecast, fetchClimate, wmo } from './weather.js';
 import { taskRow } from './tasks.js';
 import { avatar } from './plants.js';
@@ -53,14 +53,14 @@ export async function renderHome(root) {
   root.append(section('地域の天気', wx));
   if (!settings.region) {
     wx.append(h('p', { class: 'muted' }, '市区町村を登録すると、現在の気温・週間予報・植物ごとの温度警告が表示されます。'), h('a', { class: 'btn primary small', href: '#/settings' }, '地域を設定する'));
-    warnStat.querySelector('b').textContent = locN.length || '—'; if (locN.length) warnStat.classList.add('alert'); drawAlerts(alerts, locN);
+    warnStat.querySelector('b').textContent = locN.length || '—'; if (locN.length) warnStat.classList.add('alert'); drawAlerts(alerts, locN, ctx, rerender);
   } else {
     wx.append(h('p', { class: 'muted' }, '天気を取得中…'));
     fetchForecast(settings.region).then((f) => {
       drawWeather(wx, f, settings, rerender);
       const ws = C.computeWarnings(ctx.plants, ctx.names, f.daily, settings.margin, settings.temps).concat(locN);
       warnStat.querySelector('b').textContent = ws.length; if (ws.length) warnStat.classList.add('alert');
-      drawAlerts(alerts, ws);
+      drawAlerts(alerts, ws, ctx, rerender);
     }).catch((e) => {
       wx.innerHTML = ''; wx.append(h('p', { class: 'warn caution' }, '天気を取得できませんでした(オフライン、またはAPIに接続できません)。'), h('small', { class: 'muted' }, String(e.message)), h('button', { class: 'btn small', onclick: rerender }, '再試行'));
     });
@@ -82,13 +82,13 @@ export async function renderHome(root) {
   if (hints.length) root.append(section('今月のヒント', h('div', { class: 'card' }, hints.slice(0, 12).map(([p, t]) => h('a', { class: 'hint-row', href: `#/plants/${p.id}` }, avatar(p, 'mini'), h('span', null, h('strong', null, ctx.names[p.id]), h('br'), t), icon('chevron', 18))))));
 }
 
-function drawAlerts(box, ws) {
+function drawAlerts(box, ws, ctx, rerender) {
   box.innerHTML = '';
   if (!ws.length) return;
   const worst = ws[0].level;
   box.append(h('details', { class: 'alert-card ' + worst, open: worst === 'urgent' || worst === 'warning' },
     h('summary', null, icon('thermo', 22), h('strong', null, `気温アラート ${ws.length}件`), h('span', { class: 'sm-note' }, '週間予報・設定温度・植物の居場所')),
-    ws.map((w) => h('div', { class: 'warn-row ' + w.level }, h('span', { class: 'lv' }, w.label), w.plantId ? h('div', null, h('a', { href: `#/plants/${w.plantId}` }, w.name), h('div', { class: 'muted' }, w.date ? `${w.msg}(${fmtShort(w.date)})` : w.msg)) : h('div', null, h('strong', null, w.msg)))),
+    ws.map((w) => h('div', { class: 'warn-row ' + w.level }, h('span', { class: 'lv' }, w.label), w.plantId ? h('div', null, h('a', { href: `#/plants/${w.plantId}` }, w.name), h('div', { class: 'muted' }, w.date ? `${w.msg}(${fmtShort(w.date)})` : w.msg), w.kind === 'location' ? locButtons(ctx.plants.find((x) => x.id === w.plantId), rerender) : null) : h('div', null, h('strong', null, w.msg)))),
     h('p', { class: 'note' }, '※ 温度警告は栽培判断の補助です。風・鉢内温度・日当たり・植物の状態も考慮して、屋外管理を続けるか室内へ移すか判断してください。')));
 }
 
@@ -118,4 +118,11 @@ function climateBox(region) {
     } catch (e) { body.textContent = '取得できませんでした: ' + e.message; loaded = false; }
   });
   return box;
+}
+
+function locButtons(p, rerender) {
+  if (!p) return null;
+  return h('div', { class: 'row gap loc-btns' },
+    h('button', { class: 'btn small primary', type: 'button', onclick: async () => { await moveToSeasonLoc(p); toast(`「${C.effLocation(p) === 'outdoor' ? '屋外' : '屋内'}」に移動しました`); rerender(); } }, '移動する'),
+    h('button', { class: 'btn small ghost', type: 'button', onclick: async () => { await snoozeLocNotice(p); toast('まだ大丈夫にしました(3日後にまた知らせます)'); rerender(); } }, 'まだ大丈夫'));
 }

@@ -96,3 +96,8 @@ export async function reviveGrave(grave) {
   });
   return plant;
 }
+
+/** 場所のお知らせ「移動する」: 今の場所を今季の管理場所に合わせる */
+export async function moveToSeasonLoc(p) { p.nowLoc = C.effLocation(p) || p.nowLoc; p.locSnooze = ''; await db.put('plants', p); }
+/** 「まだ大丈夫」: 今回はスキップ。3日後にもう一度お知らせ */
+export async function snoozeLocNotice(p) { p.locSnooze = C.addDays(C.today(), 3); await db.put('plants', p); }

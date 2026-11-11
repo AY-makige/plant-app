@@ -1,7 +1,7 @@
 // plants.js — ライブラリー(一覧・詳細・登録/編集)
 import { h, sprite, icon, empty, field, opt, monthChips, mixLine, modal, confirmBox, toast, photoInput, fmtDate, relDays, stageClass, ownStart, purchaseText, lifespanText, PLANT_SPRITES, SPRITE_GROUPS, resolveSprite, MONTHS, C } from './ui.js';
 import { db, uid, getSettings } from './db.js';
-import { loadCtx, deleteLog, deletePlant, recordSkip } from './data.js';
+import { loadCtx, deleteLog, deletePlant, recordSkip, moveToSeasonLoc, snoozeLocNotice } from './data.js';
 import { googleUrl, aiPrompt, openAiSearch, imageUrl, RESEARCH_ITEMS, FIELDS, ENVS, getEnv, setEnv, speciesQuery, openTab, geminiConfig, geminiLookup, toFormValues } from './search.js';
 import { careModal } from './care.js';
 import { repotModal, soilCard, currentSoilMap } from './soil.js';
@@ -171,7 +171,7 @@ export async function renderDetail(root, id) {
         qa('pot', '植え替え', () => repotModal(p, null, reload), 'pot'),
         (() => { const cur = p.nowLoc || C.effLocation(p) || p.location || 'indoor';
           return qa(cur === 'outdoor' ? 'sun' : 'home', cur === 'outdoor' ? '今は屋外' : '今は屋内', async () => { p.nowLoc = cur === 'outdoor' ? 'indoor' : 'outdoor'; await db.put('plants', p); reload(); }, 'loc'); })()),
-      C.locNotice(p) ? h('p', { class: 'loc-note' }, C.locNotice(p)) : null,
+      C.locNotice(p) ? h('div', { class: 'loc-note' }, h('p', null, C.locNotice(p)), h('div', { class: 'row gap', style: 'justify-content:center' }, h('button', { class: 'btn small primary', type: 'button', onclick: async () => { await moveToSeasonLoc(p); toast('移動しました'); reload(); } }, '移動する'), h('button', { class: 'btn small ghost', type: 'button', onclick: async () => { await snoozeLocNotice(p); toast('まだ大丈夫にしました(3日後にまた知らせます)'); reload(); } }, 'まだ大丈夫'))) : null,
       seg, panel));
   { const hero = root.querySelector('.d-hero.has-photo'); if (hero) hero.style.setProperty('--hero-bg', `url("${p.photo}")`); } // 写真の背景(ぼかし)
   drawPanel();

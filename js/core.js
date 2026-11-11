@@ -83,6 +83,7 @@
   function locNotice(p) {
     const now = p && p.nowLoc, want = effLocation(p);
     if (!now || !want || now === want) return '';
+    if (p.locSnooze && p.locSnooze > today()) return ''; // 「まだ大丈夫」で3日間お休み
     return want === 'indoor' ? 'そろそろ部屋に入れてほしいかも' : 'そろそろ外で暮らしたいかも';
   }
   function locationNotices(plants, names) {
