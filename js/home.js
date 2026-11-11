@@ -77,6 +77,8 @@ export async function renderHome(root) {
       warnStat.querySelector('b').textContent = ws.length; if (ws.length) warnStat.classList.add('alert');
       drawAlerts(alerts, ws, ctx, rerender);
     }).catch((e) => {
+      // 天気が取得できなくても、場所アラートは表示する
+      warnStat.querySelector('b').textContent = locN.length || '—'; if (locN.length) warnStat.classList.add('alert'); drawAlerts(alerts, locN, ctx, rerender);
       wx.innerHTML = ''; wx.append(h('p', { class: 'warn caution' }, '天気を取得できませんでした(オフライン、またはAPIに接続できません)。'), h('small', { class: 'muted' }, String(e.message)), h('button', { class: 'btn small', onclick: rerender }, '再試行'));
     });
   }

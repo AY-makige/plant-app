@@ -34,6 +34,7 @@ export async function fetchForecast(region, force = false) {
       `&current=temperature_2m,weather_code,relative_humidity_2m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum` +
       `&timezone=auto&forecast_days=7`;
     const j = await getJson(u);
+    if (!j || !j.daily || !Array.isArray(j.daily.time) || !j.current) throw new Error('予報データの形式が正しくありませんでした');
     const daily = j.daily.time.map((t, i) => ({
       date: t, code: j.daily.weather_code[i], tmax: j.daily.temperature_2m_max[i], tmin: j.daily.temperature_2m_min[i],
       pop: j.daily.precipitation_probability_max[i], rain: j.daily.precipitation_sum[i],

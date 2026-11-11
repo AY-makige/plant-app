@@ -44,7 +44,9 @@ function mixEditor(mats, initial) {
     h('button', { type: 'button', class: 'btn small', onclick: () => { rows.push({ material: mats[0] && mats[0].name, parts: 1, custom: false }); draw(); } }, '＋ 用土を追加(サンプルから)'),
     h('button', { type: 'button', class: 'btn small', onclick: () => { rows.push({ material: '', parts: 1, custom: true }); draw(); setTimeout(() => { const t = list.querySelectorAll('.mix-custom input'); t.length && t[t.length - 1].focus(); }, 0); } }, '＋ その他(手入力)')), ratio));
   draw();
-  return { el, get mix() { return rows.filter((r) => r.material && Number(r.parts) > 0).map((r) => ({ material: r.material, parts: Number(r.parts) })); }, get total() { return sum(); }, set(m) { rows = normalizeMix(m).map(mk); draw(); } };
+  return { el, get mix() { // 同じ用土が複数行あるときは1つにまとめて部数を合計する
+    const m = new Map(); rows.filter((r) => r.material && Number(r.parts) > 0).forEach((r) => { const k = r.material.trim(); m.set(k, (m.get(k) || 0) + Number(r.parts)); });
+    return [...m].map(([material, parts]) => ({ material, parts })); }, get total() { return sum(); }, set(m) { rows = normalizeMix(m).map(mk); draw(); } };
 }
 
 export async function recipeModal(recipe, onDone) {

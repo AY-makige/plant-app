@@ -106,9 +106,9 @@ export async function renderSettings(root) {
 
   /* 温度警告(全体設定) */
   const tmp = { ...DEFAULT_TEMPS, ...(s.temps || {}) };
-  const tIn = (k, step = 0.5) => { const i = h('input', { type: 'number', step, value: tmp[k] }); i.addEventListener('change', async () => { if (i.value === '') { i.value = tmp[k]; return; } s.temps = { ...tmp, ...(s.temps || {}), [k]: Number(i.value) }; await saveSettings(s); toast('保存しました'); }); return i; };
+  const tIn = (k, step = 0.5) => { const i = h('input', { type: 'number', step, value: tmp[k] }); i.addEventListener('change', async () => { if (i.value === '' || !(Number(i.value) >= -50 && Number(i.value) <= 60)) { if (i.value !== '') toast('温度は -50〜60℃ の範囲で入力してください'); i.value = tmp[k]; return; } s.temps = { ...tmp, ...(s.temps || {}), [k]: Number(i.value) }; await saveSettings(s); toast('保存しました'); }); return i; };
   const margin = h('input', { type: 'number', min: 0, max: 10, step: 0.5, value: s.margin ?? 3 });
-  margin.addEventListener('change', async () => { s.margin = Number(margin.value); await saveSettings(s); toast('保存しました'); });
+  margin.addEventListener('change', async () => { const mv = Number(margin.value); if (margin.value === '' || !(mv >= 0 && mv <= 30)) { toast('余裕温度は 0〜30℃ の範囲で入力してください'); margin.value = s.margin ?? 3; return; } s.margin = mv; await saveSettings(s); toast('保存しました'); });
   const locDays = h('input', { type: 'number', min: 1, max: 60, step: 1, value: s.locDays ?? 3 });
   locDays.addEventListener('change', async () => { const n = Math.round(Number(locDays.value)); if (!(n >= 1 && n <= 60)) { locDays.value = s.locDays ?? 3; return; } s.locDays = n; await saveSettings(s); toast('保存しました'); });
   root.append(h('div', { class: 'card' }, h('h2', null, '温度警告(全ての植物に共通)'),
