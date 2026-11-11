@@ -1,5 +1,5 @@
 // data.js — データ操作(登録・実施記録・削除・メモリアル移動)
-import { db, uid } from './db.js';
+import { db, uid, getSettings } from './db.js';
 import { plantNames } from './notify.js';
 const C = window.PlantCore;
 
@@ -100,4 +100,4 @@ export async function reviveGrave(grave) {
 /** 場所のお知らせ「移動する」: 今の場所を今季の管理場所に合わせる */
 export async function moveToSeasonLoc(p) { p.nowLoc = C.effLocation(p) || p.nowLoc; p.locSnooze = ''; await db.put('plants', p); }
 /** 「まだ大丈夫」: 今回はスキップ。3日後にもう一度お知らせ */
-export async function snoozeLocNotice(p) { p.locSnooze = C.addDays(C.today(), 3); await db.put('plants', p); }
+export async function snoozeLocNotice(p) { const s = await getSettings(); const n = Math.max(1, Math.min(60, Math.round(Number(s.locDays) || 3))); p.locSnooze = C.addDays(C.today(), n); await db.put('plants', p); return n; }

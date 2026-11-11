@@ -107,11 +107,14 @@ export async function renderSettings(root) {
   const tIn = (k, step = 0.5) => { const i = h('input', { type: 'number', step, value: tmp[k] }); i.addEventListener('change', async () => { if (i.value === '') { i.value = tmp[k]; return; } s.temps = { ...tmp, ...(s.temps || {}), [k]: Number(i.value) }; await saveSettings(s); toast('保存しました'); }); return i; };
   const margin = h('input', { type: 'number', min: 0, max: 10, step: 0.5, value: s.margin ?? 3 });
   margin.addEventListener('change', async () => { s.margin = Number(margin.value); await saveSettings(s); toast('保存しました'); });
+  const locDays = h('input', { type: 'number', min: 1, max: 60, step: 1, value: s.locDays ?? 3 });
+  locDays.addEventListener('change', async () => { const n = Math.round(Number(locDays.value)); if (!(n >= 1 && n <= 60)) { locDays.value = s.locDays ?? 3; return; } s.locDays = n; await saveSettings(s); toast('保存しました'); });
   root.append(h('div', { class: 'card' }, h('h2', null, '温度警告(全ての植物に共通)'),
     h('p', { class: 'muted' }, '屋内・屋外の区別なく、全ての植物に共通の気温アラートです。ここで決めた温度と週間予報を比べて、アラートを1つにまとめて表示します(植物ごとの設定は不要です)。'),
     field('「特に寒い日」にする温度(℃)', tIn('outdoorMin'), 'これを下回る日は「本日は特に寒いため、低温に注意してください」を表示(他の気温アラートは出ません)。この温度+余裕温度 以下の予報では「低気温につき管理植物の水やりに気を付けてください」(冷えた日の水やりは根が冷えすぎるため)'),
     field('「特に暑い日」にする温度(℃)', tIn('highTemp'), 'この温度以上の日は「本日は特に暑いため、高温に注意してください」を表示。この温度−余裕温度 以上では「高気温につき管理植物の風通しに気を付けてください」(暑い日は蒸れて弱るため)'),
-    field('余裕温度(℃)', margin, '低気温・高気温の注意を、どれだけ手前から出すか(特に寒い日の温度 + この値 / 特に暑い日の温度 − この値)')));
+    field('余裕温度(℃)', margin, '低気温・高気温の注意を、どれだけ手前から出すか(特に寒い日の温度 + この値 / 特に暑い日の温度 − この値)'),
+    field('場所アラートの間隔(日)', locDays, '「まだ大丈夫」を押したあと、屋内・屋外の場所アラートをお休みする日数(1〜60日)。特に寒い・暑い日は、お休み中でもずれていれば表示します')));
 
   /* 予定の表示名(水やり・液肥) */
   const LB = C.mergeLabels(s.labels);

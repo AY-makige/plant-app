@@ -80,14 +80,14 @@
   }
 
   /** 「今ある場所」(p.nowLoc)と、今の季節の管理場所(effLocation)がずれている植物のお知らせ */
-  function locNotice(p) {
+  function locNotice(p, force) {
     const now = p && p.nowLoc, want = effLocation(p);
     if (!now || !want || now === want) return '';
-    if (p.locSnooze && p.locSnooze > today()) return ''; // 「まだ大丈夫」で3日間お休み
+    if (!force && p.locSnooze && p.locSnooze > today()) return ''; // 「まだ大丈夫」の間はお休み(特に寒い・暑い日は force=true で無視)
     return want === 'indoor' ? 'そろそろ部屋に入れてほしいかも' : 'そろそろ外で暮らしたいかも';
   }
-  function locationNotices(plants, names) {
-    return (plants || []).map((p) => ({ p, msg: locNotice(p) })).filter((x) => x.msg)
+  function locationNotices(plants, names, force) {
+    return (plants || []).map((p) => ({ p, msg: locNotice(p, force) })).filter((x) => x.msg)
       .map((x) => ({ plantId: x.p.id, name: (names && names[x.p.id]) || x.p.nickname || '', kind: 'location', level: 'caution', label: '場所', date: null, msg: x.msg }));
   }
 

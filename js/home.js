@@ -58,7 +58,9 @@ export async function renderHome(root) {
     wx.append(h('p', { class: 'muted' }, '天気を取得中…'));
     fetchForecast(settings.region).then((f) => {
       drawWeather(wx, f, settings, rerender);
-      const ws = C.computeWarnings(ctx.plants, ctx.names, f.daily, settings.margin, settings.temps).concat(locN);
+      const cw = C.computeWarnings(ctx.plants, ctx.names, f.daily, settings.margin, settings.temps);
+      // 特に寒い・暑い日のアラートが出る日は、お休み中でもずれている植物の場所アラートを出す
+      const ws = cw.concat(cw.some((w) => w.kind === 'extreme') ? C.locationNotices(ctx.plants, ctx.names, true) : locN);
       warnStat.querySelector('b').textContent = ws.length; if (ws.length) warnStat.classList.add('alert');
       drawAlerts(alerts, ws, ctx, rerender);
     }).catch((e) => {
@@ -124,5 +126,5 @@ function locButtons(p, rerender) {
   if (!p) return null;
   return h('div', { class: 'row gap loc-btns' },
     h('button', { class: 'btn small primary', type: 'button', onclick: async () => { await moveToSeasonLoc(p); toast(`「${C.effLocation(p) === 'outdoor' ? '屋外' : '屋内'}」に移動しました`); rerender(); } }, '移動する'),
-    h('button', { class: 'btn small ghost', type: 'button', onclick: async () => { await snoozeLocNotice(p); toast('まだ大丈夫にしました(3日後にまた知らせます)'); rerender(); } }, 'まだ大丈夫'));
+    h('button', { class: 'btn small ghost', type: 'button', onclick: async () => { const n = await snoozeLocNotice(p); toast(`まだ大丈夫にしました(${n}日後にまた知らせます)`); rerender(); } }, 'まだ大丈夫'));
 }

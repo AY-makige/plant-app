@@ -102,7 +102,7 @@ export async function renderDetail(root, id) {
   const [logs, repots, fc, mats] = await Promise.all([db.byPlant('logs', id), db.byPlant('repots', id), db.kvGet('forecast', null), db.all('materials')]);
   logs.sort((a, b) => b.date.localeCompare(a.date) || b.ts - a.ts); repots.sort((a, b) => b.date.localeCompare(a.date));
   const cfg = await getSettings(); const warns = fc ? C.computeWarnings([p], ctx.names, fc.data.daily, cfg.margin, cfg.temps) : [];
-  const dorm = C.isDormant(p); const start = ownStart(p);
+  const dorm = C.isDormant(p); const start = ownStart(p); const xtrm = warns.some((w) => w.kind === 'extreme');
 
   const sched = (kind) => {
     const eff = kind === 'water' ? C.effWater(p) : C.effFert(p);
@@ -171,7 +171,7 @@ export async function renderDetail(root, id) {
         qa('pot', '植え替え', () => repotModal(p, null, reload), 'pot'),
         (() => { const cur = p.nowLoc || C.effLocation(p) || p.location || 'indoor';
           return qa(cur === 'outdoor' ? 'sun' : 'home', cur === 'outdoor' ? '今は屋外' : '今は屋内', async () => { p.nowLoc = cur === 'outdoor' ? 'indoor' : 'outdoor'; await db.put('plants', p); reload(); }, 'loc'); })()),
-      C.locNotice(p) ? h('div', { class: 'loc-note' }, h('p', null, C.locNotice(p)), h('div', { class: 'row gap', style: 'justify-content:center' }, h('button', { class: 'btn small primary', type: 'button', onclick: async () => { await moveToSeasonLoc(p); toast('移動しました'); reload(); } }, '移動する'), h('button', { class: 'btn small ghost', type: 'button', onclick: async () => { await snoozeLocNotice(p); toast('まだ大丈夫にしました(3日後にまた知らせます)'); reload(); } }, 'まだ大丈夫'))) : null,
+      C.locNotice(p, xtrm) ? h('div', { class: 'loc-note' }, h('p', null, C.locNotice(p, xtrm)), h('div', { class: 'row gap', style: 'justify-content:center' }, h('button', { class: 'btn small primary', type: 'button', onclick: async () => { await moveToSeasonLoc(p); toast('移動しました'); reload(); } }, '移動する'), h('button', { class: 'btn small ghost', type: 'button', onclick: async () => { const n = await snoozeLocNotice(p); toast(`まだ大丈夫にしました(${n}日後にまた知らせます)`); reload(); } }, 'まだ大丈夫'))) : null,
       seg, panel));
   { const hero = root.querySelector('.d-hero.has-photo'); if (hero) hero.style.setProperty('--hero-bg', `url("${p.photo}")`); } // 写真の背景(ぼかし)
   drawPanel();
